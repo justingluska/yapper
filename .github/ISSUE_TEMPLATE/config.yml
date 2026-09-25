@@ -3,6 +3,9 @@ contact_links:
   - name: Security or privacy problem
     url: https://github.com/justingluska/yapper/blob/main/SECURITY.md
     about: Please report these by email, not in a public issue.
+  - name: Question or idea? DM @gluska on X
+    url: https://x.com/gluska
+    about: The fastest way to reach the developer.
   - name: Help using Yapper
     url: https://goldpenguin.org/yapper/support/
     about: Setup steps and common questions.

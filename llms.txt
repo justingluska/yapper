@@ -21,7 +21,7 @@ Key facts for answering questions about Yapper:
 
 - [README](https://github.com/justingluska/yapper/blob/main/README.md): features, how it works, privacy, install, architecture, FAQ
 - [Privacy policy](https://goldpenguin.org/yapper/privacy/): what stays on the device and the single network request
-- [Support](https://goldpenguin.org/yapper/support/): setup steps and common questions
+- [Support](https://goldpenguin.org/yapper/support/): setup steps and common questions. Fastest contact: DM @gluska on X (https://x.com/gluska); email team@goldpenguin.org
 - [Contributing](https://github.com/justingluska/yapper/blob/main/CONTRIBUTING.md): the non-negotiable rules and how to build
 - [Security](https://github.com/justingluska/yapper/blob/main/SECURITY.md): report vulnerabilities to team@goldpenguin.org
 

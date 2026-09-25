@@ -115,14 +115,14 @@ struct SettingsView: View {
                     Text("Made by Justin Gluska")
                         .font(Theme.font(16, .semibold))
                         .foregroundStyle(Theme.textEmphasis)
-                    Text("Yapper is completely free, made for the community of people who dictate all day. If you like it, give me a follow.")
+                    Text("Yapper is completely free, made for the community of people who dictate all day. Questions, bugs or ideas? DM me on X, that's the fastest way to reach me.")
                         .font(Theme.font(15))
                         .foregroundStyle(Theme.text)
                     NavigationLink("How Yapper is different") { DifferentView() }
                         .font(Theme.font(15, .medium))
                     NavigationLink("Good to know") { GoodToKnowView() }
                         .font(Theme.font(15, .medium))
-                    Link("@gluska on X", destination: URL(string: "https://x.com/gluska")!)
+                    Link("Message @gluska on X", destination: URL(string: "https://x.com/gluska")!)
                         .font(Theme.font(15, .medium))
                 }
                 .padding(.vertical, 4)
@@ -136,7 +136,8 @@ struct SettingsView: View {
                 NavigationLink("Privacy") { PrivacyView() }
                 Link("Privacy policy", destination: URL(string: "https://goldpenguin.org/yapper/privacy/")!)
                 Link("Terms of service", destination: URL(string: "https://goldpenguin.org/yapper/terms/")!)
-                Link("Support", destination: URL(string: "https://goldpenguin.org/yapper/support/")!)
+                Link("Help: DM @gluska on X", destination: URL(string: "https://x.com/gluska")!)
+                Link("Setup help and FAQ", destination: URL(string: "https://goldpenguin.org/yapper/support/")!)
                 NavigationLink("Licenses") { LicensesView() }
                 Link("Source code", destination: URL(string: "https://github.com/justingluska/yapper")!)
             } footer: {

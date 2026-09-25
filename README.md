@@ -13,7 +13,7 @@ Talk, and Yapper types it into any app. Speech is transcribed on your iPhone, ne
 [![On-device](https://img.shields.io/badge/speech-100%25%20on--device-0B6BDE)](#privacy)
 [![Build](https://github.com/justingluska/yapper/actions/workflows/build.yml/badge.svg)](https://github.com/justingluska/yapper/actions/workflows/build.yml)
 
-Coming soon to the App Store · [Privacy](https://goldpenguin.org/yapper/privacy/) · [Support](https://goldpenguin.org/yapper/support/)
+Coming soon to the App Store · [Privacy](https://goldpenguin.org/yapper/privacy/) · Questions? [DM @gluska on X](https://x.com/gluska)
 
 <img src="docs/images/hero.png" alt="Yapper on iPhone: the dictation keyboard listening, stats with a contribution grid, history, and the typing layout, in light and dark mode" width="900">
 
@@ -308,8 +308,14 @@ security problems privately as described in [SECURITY.md](SECURITY.md).
   [Dictus](https://github.com/getdictus/dictus-ios), [KeyVox](https://github.com/macmixing/keyvox) and
   [Muesli](https://github.com/Muesli-HQ/muesli-ios).
 
+## Support
+
+Questions, bugs or ideas: **DM me on X, [@gluska](https://x.com/gluska)**. That's the fastest way to reach me.
+Setup steps and common questions are on the [support page](https://goldpenguin.org/yapper/support/), and email
+(team@goldpenguin.org) works too. Found a bug in the code? [Open an issue](https://github.com/justingluska/yapper/issues).
+
 ## License
 
 [MIT](LICENSE). Made by [Justin Gluska](https://x.com/gluska) and published by Gold Penguin, LLC.
 [Website](https://goldpenguin.org/yapper/) · [Privacy](https://goldpenguin.org/yapper/privacy/) ·
-[Terms](https://goldpenguin.org/yapper/terms/) · [Support](https://goldpenguin.org/yapper/support/) · team@goldpenguin.org
+[Terms](https://goldpenguin.org/yapper/terms/) · [Support](https://goldpenguin.org/yapper/support/) · DM [@gluska](https://x.com/gluska)
