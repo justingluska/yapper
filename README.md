@@ -242,6 +242,24 @@ The app itself is small. Parakeet Ultra is a 632 MB download and Parakeet v3 is 
 them. Apple on-device needs no download.
 </details>
 
+## Good to know
+
+Doing dictation on the phone instead of a server has trade-offs. None of them are hidden:
+
+- **Starting takes a moment.** Turning the speech engine on loads the model into the Neural Engine: a few seconds
+  usually, and a few minutes the very first time while iOS optimizes it for your chip. Apple on-device starts instantly.
+- **It needs space.** Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB).
+- **Best on recent iPhones.** Parakeet runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory
+  or more. Older iPhones work, just slower; Apple on-device is the lighter choice there, and the app says so on
+  iPhones with less memory.
+- **Yapper opens once per session.** iOS never lets a keyboard use the microphone, so the first dictation opens the
+  app to start listening. After that the engine stays on for 5, 15 or 60 minutes.
+- **The orange dot and battery.** While the engine is on, iOS shows the mic indicator and the mic stays ready, which
+  uses a little more battery. Turn it off from the app, the keyboard or the Dynamic Island.
+- **Languages.** Parakeet covers 25 European languages, English included. Apple on-device uses your iPhone's language.
+- **Where the keyboard can't go.** iOS uses its own keyboard in password fields, and some apps block other keyboards.
+- **It can mishear.** Names, numbers and jargon can come out wrong; the personal dictionary fixes the ones you use.
+
 ## Roadmap
 
 Ideas under consideration, all on-device. None of these are promises.

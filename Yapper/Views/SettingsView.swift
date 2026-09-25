@@ -120,6 +120,8 @@ struct SettingsView: View {
                         .foregroundStyle(Theme.text)
                     NavigationLink("How Yapper is different") { DifferentView() }
                         .font(Theme.font(15, .medium))
+                    NavigationLink("Good to know") { GoodToKnowView() }
+                        .font(Theme.font(15, .medium))
                     Link("@gluska on X", destination: URL(string: "https://x.com/gluska")!)
                         .font(Theme.font(15, .medium))
                 }

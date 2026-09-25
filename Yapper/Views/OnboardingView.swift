@@ -190,6 +190,13 @@ struct OnboardingView: View {
             Text("If you download it, it keeps going while you finish setting up. If you leave Yapper for a moment (to add the keyboard), it picks up again when you come back. Until it's done, Apple's speech recognizer does the work, also on this iPhone.")
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
+            Card {
+                SectionLabel(text: "Good to know")
+                GoodToKnowList(compact: true)
+                Text("More in Settings › About › Good to know.")
+                    .font(Theme.font(13))
+                    .foregroundStyle(Theme.textFaint)
+            }
             if controller.downloadedModels.contains(.ultra) {
                 Done(text: "Parakeet is downloaded")
                 Button("Continue") { go(to: .keyboard) }
