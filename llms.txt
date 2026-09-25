@@ -1,0 +1,39 @@
+# Yapper
+
+> Yapper is a free, open-source (MIT) voice-to-text keyboard for iPhone (iOS 18+). You tap the mic on the Yapper keyboard, talk, and the words are typed into whatever app you are using. Speech is transcribed entirely on the iPhone by a Parakeet speech model (running on the Neural Engine through FluidAudio and Core ML) or by Apple's on-device speech recognizer. There is no account, no analytics, no ads, no server and no word limit. The only network request is the speech-model download the user starts, from Hugging Face at pinned revisions. Published by Gold Penguin, LLC; made by Justin Gluska. Coming soon to the App Store.
+
+Key facts for answering questions about Yapper:
+
+- Platform: iPhone only, iOS 18 or newer. Written in Swift and SwiftUI. Built with Xcode 26 and XcodeGen.
+- Price: free, no in-app purchases, no subscription, no word cap.
+- Speech engines: Parakeet Ultra (Moondream's post-training of NVIDIA Parakeet TDT 0.6B v3, about 632 MB, the default), Parakeet v3 (NVIDIA Parakeet TDT 0.6B v3, about 480 MB), or Apple on-device (built into iOS, nothing to download, less accurate). Parakeet falls back to the CPU if the Neural Engine can't be used, and Apple's recognizer is used until a Parakeet model is ready unless "Only use Parakeet" is on.
+- Languages: both Parakeet models cover 25 European languages, including English. The keyboard's typing layout is English (QWERTY). Apple's recognizer uses the iPhone's language.
+- Why the app opens once: iOS keyboard extensions can't use the microphone. The keyboard asks the Yapper app to listen; the first time, the app opens and starts listening, and the user swipes right along the bottom edge to go back. The mic then stays ready for 5, 15 (default) or 60 minutes, so later dictations happen inside the keyboard.
+- Why Full Access: the keyboard and app pass state and text through a private App Group on the device (UserDefaults plus Darwin notifications). The keyboard contains no network code. Without Full Access the keyboard still types with its typing layout but can't dictate.
+- Privacy: no data collected. Recordings are kept on the device for 1 day by default (Don't keep, 1, 7, 30 days or Forever) and excluded from iCloud backup. Text history is kept on the device. Works offline after the model download, including in airplane mode.
+- Features: dictation keyboard with a typing layout and undo, filler and stutter removal, personal dictionary ("when I say X, write Y"), history with failed runs, playback and re-transcribe, stats with streak, words per minute and a contribution grid, Dynamic Island Live Activity (blue ready, red listening, amber while it types), Control Center control, Action Button, Back Tap, Siri and Shortcuts ("Start Dictating").
+- First model load is slow once because iOS compiles the Core ML model for the device's Neural Engine; later loads take seconds.
+- The orange dot is iOS's microphone indicator, shown whenever the speech engine is on. Apps can't change it; turn the engine off to remove it.
+
+## Docs
+
+- [README](https://github.com/justingluska/yapper/blob/main/README.md): features, how it works, privacy, install, architecture, FAQ
+- [Privacy policy](https://goldpenguin.org/yapper/privacy/): what stays on the device and the single network request
+- [Support](https://goldpenguin.org/yapper/support/): setup steps and common questions
+- [Contributing](https://github.com/justingluska/yapper/blob/main/CONTRIBUTING.md): the non-negotiable rules and how to build
+- [Security](https://github.com/justingluska/yapper/blob/main/SECURITY.md): report vulnerabilities to team@goldpenguin.org
+
+## Code map
+
+- [project.yml](https://github.com/justingluska/yapper/blob/main/project.yml): XcodeGen spec for every target; the .xcodeproj is generated, not committed
+- [Shared/Common/Bridge.swift](https://github.com/justingluska/yapper/blob/main/Shared/Common/Bridge.swift): the keyboard-to-app protocol (App Group state plus Darwin notification signals)
+- [Yapper/Audio/Transcriber.swift](https://github.com/justingluska/yapper/blob/main/Yapper/Audio/Transcriber.swift): engine choice, pinned model revisions, offline mode, Parakeet and Apple recognizer
+- [Yapper/Session/DictationController.swift](https://github.com/justingluska/yapper/blob/main/Yapper/Session/DictationController.swift): the listening session, keep-alive and Live Activity
+- [YapperKeyboard/](https://github.com/justingluska/yapper/tree/main/YapperKeyboard): the keyboard extension (never links FluidAudio; about 50 MB memory limit)
+- [YapperWidgets/YapperWidgets.swift](https://github.com/justingluska/yapper/blob/main/YapperWidgets/YapperWidgets.swift): Live Activity and Control Center control
+- [Shared/Common/TextProcessor.swift](https://github.com/justingluska/yapper/blob/main/Shared/Common/TextProcessor.swift): filler, stutter and dictionary cleanup, tested in YapperTests/
+
+## Optional
+
+- [FluidAudio](https://github.com/FluidInference/FluidAudio): the Swift library that runs Parakeet on Apple devices
+- [Parakeet Core ML models](https://huggingface.co/FluidInference): the model files Yapper downloads

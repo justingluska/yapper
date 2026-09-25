@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in Yapper doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please don't paste dictations or attach recordings you wouldn't want public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Notes and switch to the Yapper keyboard
+        2. Tap the mic
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Keyboard (dictating)
+        - Keyboard (typing layout)
+        - Yapper app
+        - Dynamic Island or Live Activity
+        - Control Center, Action Button, Siri or Shortcuts
+        - Model download
+        - History or stats
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Speech engine
+      options:
+        - Parakeet Ultra
+        - Parakeet v3
+        - Apple on-device
+        - Not sure
+  - type: input
+    id: device
+    attributes:
+      label: iPhone model and iOS version
+      placeholder: iPhone 16 Pro, iOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Yapper version
+      description: Shown at the bottom of Settings, or the commit if you built it yourself.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, screen recordings, or the engine note shown on the history item.

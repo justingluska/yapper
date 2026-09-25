@@ -1,0 +1,95 @@
+name: Screenshots
+
+# Runs the YapperScreens UI tests on a simulator and uploads screenshots of
+# the app and of the keyboard layout in every state (light and dark), so
+# design changes can be reviewed without a phone. Download with
+# `gh run download <run-id> -n screenshots`.
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+          RESOLVED="Yapper.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          mkdir -p "$(dirname "$RESOLVED")"
+          cp Package.resolved "$RESOLVED"
+
+      - name: Run screenshot tests
+        run: |
+          DEST_ID="$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          phones=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          pro=[x for x in phones if x['name'].endswith('Pro')]
+          print((pro or phones)[-1]['udid'])")"
+          # Signed to run locally (no team): the simulator only draws Live
+          # Activities from a signed widget extension.
+          # Grant the mic up front so the Dynamic Island test can turn the
+          # engine on without a permission prompt.
+          xcrun simctl boot "$DEST_ID" || true
+          xcrun simctl privacy "$DEST_ID" grant microphone com.gluska.yapper || echo "could not pre-grant the microphone"
+          status=0
+          xcodebuild test \
+            -project Yapper.xcodeproj -scheme YapperScreens \
+            -destination "id=$DEST_ID" \
+            -resultBundlePath shots.xcresult \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            > build.log 2>&1 || status=$?
+          grep -E "error:|Test Case .*(passed|failed)|Executed|\*\* " build.log | head -200
+          exit $status
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          [ -d shots.xcresult ] || exit 0
+          mkdir -p raw screenshots
+          xcrun xcresulttool export attachments --path shots.xcresult --output-path raw
+          # Name each PNG after its attachment name instead of a UUID.
+          python3 - <<'PY'
+          import json, os, re, shutil
+          manifest = json.load(open("raw/manifest.json"))
+          for test in manifest:
+              for a in test.get("attachments", []):
+                  name = a.get("suggestedHumanReadableName") or a["exportedFileName"]
+                  name = re.sub(r"_\d+_[0-9A-F-]{36}", "", name)
+                  shutil.copy(os.path.join("raw", a["exportedFileName"]), os.path.join("screenshots", name))
+          PY
+          ls screenshots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots
+          if-no-files-found: ignore
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-log
+          path: build.log
+          if-no-files-found: ignore

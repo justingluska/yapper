@@ -1,0 +1,72 @@
+name: Build
+
+# Compiles the app, keyboard and widgets for the simulator and runs the unit
+# tests. Signing and TestFlight happen on Xcode Cloud; this is the quick check.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+
+      - name: Resolve packages
+        run: |
+          # Same starting point as Xcode Cloud (ci_scripts/ci_post_clone.sh).
+          RESOLVED="Yapper.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          mkdir -p "$(dirname "$RESOLVED")"
+          cp Package.resolved "$RESOLVED"
+          xcodebuild -resolvePackageDependencies -project Yapper.xcodeproj -scheme Yapper
+          # Xcode Cloud can't resolve on its own, so the committed file must be
+          # exactly what Xcode wants. If this fails, commit the file it printed.
+          if ! diff -u Package.resolved "$RESOLVED"; then
+            echo "::error::Package.resolved is out of date; replace it with the version above"
+            cat "$RESOLVED"
+            exit 1
+          fi
+
+      - name: Build and test
+        run: |
+          DEST_ID="$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          ids=[x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          print(ids[-1])")"
+          status=0
+          xcodebuild test \
+            -project Yapper.xcodeproj -scheme Yapper \
+            -destination "id=$DEST_ID" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || status=$?
+          # Show just the useful lines; the full log is uploaded below.
+          grep -E "error:|warning: .*/(Yapper|YapperKeyboard|YapperWidgets|Shared)/|Test Case .*(passed|failed)|Executed|\*\* " build.log | head -300
+          exit $status
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore

@@ -1,0 +1,245 @@
+name: Yapper
+options:
+  bundleIdPrefix: com.gluska
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Supplied from the environment so no team lives in the repo:
+    #   DEVELOPMENT_TEAM=ABCDE12345 xcodegen generate
+    # Xcode Cloud provides it through CI_TEAM_ID (see ci_scripts). Left unset,
+    # pick a team in Xcode under Signing & Capabilities.
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+packages:
+  # Parakeet on the Neural Engine. Pinned exactly: its API changes between
+  # minor versions.
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    exactVersion: "0.17.3"
+
+schemes:
+  Yapper:
+    build:
+      targets:
+        Yapper: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: YapperTests
+  # Screenshots of the app and the keyboard layout, for design review without a
+  # phone. GitHub's Screenshots workflow runs it; Xcode Cloud never does.
+  YapperScreens:
+    build:
+      targets:
+        Yapper: all
+        KeyboardPreview: all
+    test:
+      config: Debug
+      targets:
+        - name: YapperScreenshots
+        - name: KeyboardScreenshots
+
+targets:
+  Yapper:
+    type: application
+    platform: iOS
+    sources:
+      - path: Yapper
+      - path: Shared/Common
+      - path: Shared/Session
+      - path: Shared/Fonts
+        buildPhase: resources
+    dependencies:
+      - package: FluidAudio
+        product: FluidAudio
+      - target: YapperKeyboard
+      - target: YapperWidgets
+    entitlements:
+      path: Yapper/Yapper.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.gluska.yapper
+        # iOS 27 only lets a backgrounded app use the Neural Engine with this
+        # ("Background Inference" in Signing & Capabilities).
+        com.apple.developer.background-tasks.continued-processing.inference: true
+    info:
+      path: Yapper/Info.plist
+      properties:
+        CFBundleDisplayName: Yapper
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # The running microphone keeps Yapper alive while the keyboard is in
+        # use in another app.
+        UIBackgroundModes:
+          - audio
+        NSSupportsLiveActivities: true
+        NSMicrophoneUsageDescription: Yapper listens while you dictate and turns your voice into text on this iPhone. Audio never leaves the device.
+        NSSpeechRecognitionUsageDescription: When you choose Apple on-device, or before a Parakeet model is ready, Yapper transcribes with Apple's speech recognizer, forced to run on this iPhone. Nothing is sent to Apple.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.gluska.yapper
+            CFBundleURLSchemes:
+              - yapper
+        UIAppFonts:
+          - Inter-Regular.ttf
+          - Inter-Medium.ttf
+          - Inter-SemiBold.ttf
+          - InterDisplay-Medium.ttf
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  # The keyboard is a remote control plus a text inserter. It never records
+  # and never links FluidAudio: extensions get ~50 MB of memory.
+  YapperKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: YapperKeyboard
+      - path: Shared/Common
+      - path: Shared/Fonts
+        buildPhase: resources
+    entitlements:
+      path: YapperKeyboard/YapperKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.gluska.yapper
+    info:
+      path: YapperKeyboard/Info.plist
+      properties:
+        CFBundleDisplayName: Yapper
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIAppFonts:
+          - Inter-Regular.ttf
+          - Inter-Medium.ttf
+          - Inter-SemiBold.ttf
+          - InterDisplay-Medium.ttf
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: true
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.keyboard
+        TARGETED_DEVICE_FAMILY: "1"
+
+  # Live Activity (Lock Screen / Dynamic Island) and the Control Center control.
+  YapperWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: YapperWidgets
+      - path: Shared/Common
+      - path: Shared/Session
+    entitlements:
+      path: YapperWidgets/YapperWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.gluska.yapper
+    info:
+      path: YapperWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Yapper
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+
+  # Pure-logic tests (cleanup, spacing). No host app needed.
+  YapperTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: YapperTests
+      - path: Shared/Common/TextProcessor.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  # The keyboard's SwiftUI layout hosted in a plain app, so UI tests can
+  # screenshot it. Never shipped.
+  KeyboardPreview:
+    type: application
+    platform: iOS
+    sources:
+      - path: KeyboardPreview
+      - path: YapperKeyboard/KeyboardView.swift
+      - path: YapperKeyboard/KeyGrid.swift
+      - path: YapperKeyboard/KeyboardModel.swift
+      - path: YapperKeyboard/KeyboardViewController.swift
+      - path: Shared/Common
+      - path: Shared/Fonts
+        buildPhase: resources
+    info:
+      path: KeyboardPreview/Info.plist
+      properties:
+        CFBundleDisplayName: Keyboard Preview
+        UILaunchScreen: {}
+        UIAppFonts:
+          - Inter-Regular.ttf
+          - Inter-Medium.ttf
+          - Inter-SemiBold.ttf
+          - InterDisplay-Medium.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.keyboardpreview
+        TARGETED_DEVICE_FAMILY: "1"
+
+  YapperScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: YapperScreenshots
+    dependencies:
+      - target: Yapper
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.screenshots
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Yapper
+
+  KeyboardScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: KeyboardScreenshots
+    dependencies:
+      - target: KeyboardPreview
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.keyboardscreenshots
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: KeyboardPreview
