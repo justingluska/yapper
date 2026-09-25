@@ -35,6 +35,10 @@ final class DictationController: ObservableObject {
     @Published private(set) var downloadedModels: Set<ModelChoice> = []
     /// True while a finished recording waits for Parakeet to finish loading.
     @Published private(set) var waitingForModel = false
+    /// Which step of loading the model we're on, and when loading began,
+    /// while `modelState` is `.loading`.
+    @Published private(set) var loadStage: Transcriber.LoadStage?
+    @Published private(set) var loadStarted: Date?
     /// Bumped whenever History changes, so its views reload.
     @Published private(set) var historyVersion = 0
     /// True while a saved recording is being transcribed again.
@@ -160,8 +164,20 @@ final class DictationController: ObservableObject {
 
     private func performLoad(_ choice: ModelChoice) async {
         modelState = .loading
+        loadStarted = Date()
+        loadStage = Transcriber.LoadStage(step: 0, total: Transcriber.LoadStage.total, label: "Starting")
+        defer {
+            loadStage = nil
+            loadStarted = nil
+        }
         do {
-            try await transcriber.load(choice)
+            try await transcriber.load(choice) { stage in
+                Task { @MainActor [weak self] in
+                    // Stages only move forward (FluidAudio reports some twice).
+                    guard let self, let current = self.loadStage, stage.step > current.step else { return }
+                    self.loadStage = stage
+                }
+            }
             // The user may have picked another model while this one loaded;
             // that selection runs its own load.
             guard ModelChoice.current == choice else { return }

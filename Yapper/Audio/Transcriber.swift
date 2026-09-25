@@ -147,7 +147,29 @@ actor Transcriber {
     /// Loads a downloaded model into the Neural Engine, offline. The first
     /// load compiles the model for this device and takes a while; later
     /// loads are quick.
-    func load(_ choice: ModelChoice) async throws {
+    /// A step of loading a model, for the progress shown while the engine
+    /// starts. Core ML reports no percentage, so this is step-based: the four
+    /// model parts in the order FluidAudio loads them, then a warm-up.
+    struct LoadStage: Equatable, Sendable {
+        var step: Int
+        var total: Int
+        var label: String
+
+        static let total = 5
+
+        static func forModelFile(_ name: String) -> LoadStage? {
+            let lower = name.lowercased()
+            if lower.contains("preprocessor") { return LoadStage(step: 1, total: total, label: "Audio front end") }
+            if lower.contains("encoder") { return LoadStage(step: 2, total: total, label: "Encoder, the big part") }
+            if lower.contains("decoder") { return LoadStage(step: 3, total: total, label: "Decoder") }
+            if lower.contains("joint") { return LoadStage(step: 4, total: total, label: "Joint network") }
+            return nil
+        }
+
+        static let warmUp = LoadStage(step: 5, total: total, label: "Warming up")
+    }
+
+    func load(_ choice: ModelChoice, onStage: (@Sendable (LoadStage) -> Void)? = nil) async throws {
         guard choice.isParakeet else {
             // Nothing to load; free the Neural Engine model if one is in memory.
             await unload()
@@ -156,7 +178,7 @@ actor Transcriber {
         if loadedChoice == choice, asr != nil { return }
         let manager: AsrManager
         do {
-            manager = try await makeManager(choice, cpuOnly: false)
+            manager = try await makeManager(choice, cpuOnly: false, onStage: onStage)
         } catch {
             // iOS can refuse the Neural Engine (older chips, or a background
             // restriction); the CPU is slower but always there.
@@ -169,6 +191,7 @@ actor Transcriber {
         loadedChoice = choice
         // One pass over silence so the first real dictation doesn't pay for
         // the model's warm-up.
+        onStage?(.warmUp)
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
         _ = try? await manager.transcribe([Float](repeating: 0, count: 16_000), decoderState: &state)
     }
@@ -176,7 +199,8 @@ actor Transcriber {
     /// True once we've fallen back to CPU-only inference.
     private var onCPU = false
 
-    private func makeManager(_ choice: ModelChoice, cpuOnly: Bool) async throws -> AsrManager {
+    private func makeManager(_ choice: ModelChoice, cpuOnly: Bool,
+                             onStage: (@Sendable (LoadStage) -> Void)? = nil) async throws -> AsrManager {
         guard let version = choice.version else { throw TranscriberError.noEngine }
         let dir = Self.modelDirectory(for: version)
         let manager = AsrManager(config: .default)
@@ -187,7 +211,11 @@ actor Transcriber {
             models = try await AsrModels.load(from: dir, configuration: cpu, version: version,
                                               encoderComputeUnits: .cpuOnly)
         } else {
-            models = try await AsrModels.load(from: dir, version: version)
+            models = try await AsrModels.load(from: dir, version: version) { progress in
+                if case let .compiling(name) = progress.phase, let stage = LoadStage.forModelFile(name) {
+                    onStage?(stage)
+                }
+            }
         }
         try await manager.loadModels(models)
         return manager

@@ -25,6 +25,10 @@ struct SpeechEngineCard: View {
                 .foregroundStyle(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if controller.modelState == .loading, let stage = controller.loadStage {
+                LoadProgress(stage: stage, started: controller.loadStarted)
+            }
+
             if let problem = controller.liveActivityProblem {
                 Text(problem)
                     .font(Theme.font(13))
@@ -126,7 +130,7 @@ struct SessionToggle: View {
         .alert("Loading \(ModelChoice.current.title)", isPresented: $firstLoadNote) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds.\n\nYou can keep using your phone. The Dynamic Island turns blue when the engine is ready.")
+            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds.\n\nThe Speech engine card on Home shows each step as it goes. You can keep using your phone. The Dynamic Island turns blue when the engine is ready.")
         }
     }
 }
@@ -219,6 +223,9 @@ struct ModelStatusText: View {
             case .standby:
                 return controller.isSessionLive ? "Downloaded" : "Downloaded. Loads when the engine turns on"
             case .loading:
+                if let stage = controller.loadStage, stage.step > 0 {
+                    return "Loading: \(stage.label.lowercased()) (\(stage.step) of \(stage.total))"
+                }
                 return "Loading onto your iPhone…"
             case let .downloading(progress, label):
                 return "\(label), \(Int(progress * 100))%"
@@ -391,5 +398,32 @@ struct ModelsView: View {
         .navigationTitle("Speech models")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { controller.refreshDownloadedModels() }
+    }
+}
+
+/// Loading the model: which of the five steps, a bar that moves step by
+/// step, and how long it's been. Core ML gives no percentage, so the steps
+/// are the honest measure; the first load spends most of its time on the
+/// encoder while iOS optimizes it.
+struct LoadProgress: View {
+    let stage: Transcriber.LoadStage
+    let started: Date?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ProgressView(value: Double(max(stage.step, 0)) + 0.5, total: Double(stage.total) + 0.5)
+                .tint(Theme.ready)
+                .animation(.easeInOut(duration: 0.3), value: stage.step)
+            HStack {
+                Text(stage.step > 0 ? "Step \(stage.step) of \(stage.total): \(stage.label)" : "Starting")
+                Spacer()
+                if let started {
+                    Text(timerInterval: started...Date.distantFuture, countsDown: false)
+                        .monospacedDigit()
+                }
+            }
+            .font(Theme.font(13))
+            .foregroundStyle(Theme.textMuted)
+        }
     }
 }
