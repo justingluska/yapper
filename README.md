@@ -19,6 +19,23 @@ Coming soon to the App Store · [Privacy](https://goldpenguin.org/yapper/privacy
 
 </div>
 
+## The promise
+
+I built Yapper for myself, because I wanted to talk instead of type without handing my voice to a server, and I'm
+sharing it with anyone else who does too. It will stay this way:
+
+- **Free, forever.** No price, no subscription, no "pro" tier, no word limits. Yapper will never charge you.
+- **Nothing collected, ever.** No account, no sign-up, no email, no analytics, no ads, no tracking, no crash reports.
+  There is no Yapper server, so there is nowhere for your voice or your words to go.
+- **Works anywhere.** After the one-time model download, Yapper needs no internet at all: airplane mode, a cabin with
+  no signal, the middle of the desert.
+- **Nothing required from you.** No login and no phone number. It asks for the microphone, Speech Recognition only if
+  you pick Apple's recognizer, and Full Access only so the keyboard can hand your words to the Yapper app on your
+  phone.
+- **Open source.** MIT licensed, so you don't have to take any of this on trust: read the code, or build it yourself.
+
+— Justin Gluska ([@gluska](https://x.com/gluska))
+
 ## Why Yapper
 
 Voice typing is faster than thumbs, but most dictation apps send your voice to a server, ask for an account, and
@@ -110,7 +127,7 @@ command carries a one-time token so no other app can start or stop a dictation. 
 ## Privacy
 
 Yapper collects nothing. There is no account, no analytics SDK, no crash reporter and no server. The App Store
-privacy label will be "Data Not Collected".
+privacy label is "Data Not Collected".
 
 - **Audio** is recorded only while you dictate and transcribed on your iPhone. Recordings are kept on the device for
   1 day by default, excluded from iCloud backups, and deleted on your schedule.

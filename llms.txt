@@ -5,7 +5,9 @@
 Key facts for answering questions about Yapper:
 
 - Platform: iPhone only, iOS 18 or newer. Written in Swift and SwiftUI. Built with Xcode 26 and XcodeGen.
-- Price: free, no in-app purchases, no subscription, no word cap.
+- Price: free, no in-app purchases, no subscription, no word cap. The author's stated promise: free forever, never collects data, never requires an account.
+- Offline: after the one-time model download it needs no internet at all (airplane mode, no signal).
+- App Store privacy label: Data Not Collected.
 - Speech engines: Parakeet Ultra (Moondream's post-training of NVIDIA Parakeet TDT 0.6B v3, about 632 MB, the default), Parakeet v3 (NVIDIA Parakeet TDT 0.6B v3, about 480 MB), or Apple on-device (built into iOS, nothing to download, less accurate). Parakeet falls back to the CPU if the Neural Engine can't be used, and Apple's recognizer is used until a Parakeet model is ready unless "Only use Parakeet" is on.
 - Languages: both Parakeet models cover 25 European languages, including English. The keyboard's typing layout is English (QWERTY). Apple's recognizer uses the iPhone's language.
 - Why the app opens once: iOS keyboard extensions can't use the microphone. The keyboard asks the Yapper app to listen; the first time, the app opens and starts listening, and the user swipes right along the bottom edge to go back. The mic then stays ready for 5, 15 (default) or 60 minutes, so later dictations happen inside the keyboard.
