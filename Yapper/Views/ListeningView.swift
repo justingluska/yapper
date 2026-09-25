@@ -67,12 +67,12 @@ struct ListeningView: View {
                 Text(controller.waitingForModel
                      ? "Getting \(ModelChoice.current.title) ready, then transcribing…"
                      : "Transcribing on your iPhone…")
+                    .font(Theme.font(15))
+                    .foregroundStyle(Theme.textMuted)
                 if controller.waitingForModel, let stage = controller.loadStage {
                     LoadProgress(stage: stage, started: controller.loadStarted)
                         .frame(maxWidth: 280)
                 }
-                    .font(Theme.font(15))
-                    .foregroundStyle(Theme.textMuted)
             }
         default:
             if let text = controller.lastText, controller.errorMessage == nil {
