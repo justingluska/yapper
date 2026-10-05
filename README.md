@@ -69,7 +69,10 @@ cap how much you can say before you pay. Yapper does none of that.
 
 **Speech engines, all on the device**
 - **Parakeet Ultra** (most accurate, 632 MB download) or **Parakeet v3** (480 MB), on the Neural Engine
-- **Apple on-device** recognizer: built in, nothing to download, less accurate
+- **Apple on-device**: built in, nothing to load, starts instantly, less accurate. On iOS 26 and later it uses
+  Apple's newest on-device model (SpeechAnalyzer, the one behind Notes and Voice Memos transcription)
+- **Don't wait for Parakeet**: while Parakeet loads, Apple on-device takes your dictations straight away
+- Loading shows each step and, after the first time, a progress bar and the time left, measured from the last load
 - Every dictation records which engine transcribed it, and why
 
 **History and stats**
@@ -132,7 +135,8 @@ privacy label is "Data Not Collected".
 - **Audio** is recorded only while you dictate and transcribed on your iPhone. Recordings are kept on the device for
   1 day by default, excluded from iCloud backups, and deleted on your schedule.
 - **Text** stays in History on your iPhone for as long as you choose.
-- **The only network request** is the speech-model download, which happens when you tap Download. Files come from
+- **The only network request** is the speech-model download, which happens when you tap Download. (On iOS 26, "Get
+  Apple's newest model" asks iOS to fetch Apple's own speech model from Apple; Yapper sends nothing.) Files come from
   Hugging Face, pinned to exact commits so they can't change under you. Everything else runs with networking
   switched off in code (`ModelHub.offlineMode`).
 
@@ -264,7 +268,8 @@ them. Apple on-device needs no download.
 Doing dictation on the phone instead of a server has trade-offs. None of them are hidden:
 
 - **Starting takes a moment.** Turning the speech engine on loads the model into the Neural Engine: a few seconds
-  usually, and a few minutes the very first time while iOS optimizes it for your chip. Apple on-device starts instantly.
+  usually, and a few minutes the very first time while iOS optimizes it for your chip. Apple on-device starts instantly,
+  and Don't wait for Parakeet uses it until Parakeet is ready.
 - **It needs space.** Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB).
 - **Best on recent iPhones.** Parakeet runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory
   or more. Older iPhones work, just slower; Apple on-device is the lighter choice there, and the app says so on

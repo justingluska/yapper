@@ -93,7 +93,7 @@ targets:
           - audio
         NSSupportsLiveActivities: true
         NSMicrophoneUsageDescription: Yapper listens while you dictate and turns your voice into text on this iPhone. Audio never leaves the device.
-        NSSpeechRecognitionUsageDescription: When you choose Apple on-device, or before a Parakeet model is ready, Yapper transcribes with Apple's speech recognizer, forced to run on this iPhone. Nothing is sent to Apple.
+        NSSpeechRecognitionUsageDescription: When you choose Apple on-device, or while a Parakeet model isn't ready, Yapper transcribes with Apple's speech recognition, forced to run on this iPhone. Nothing is sent to Apple.
         CFBundleURLTypes:
           - CFBundleURLName: com.gluska.yapper
             CFBundleURLSchemes:
@@ -182,6 +182,7 @@ targets:
     sources:
       - path: YapperTests
       - path: Shared/Common/TextProcessor.swift
+      - path: Shared/Common/LoadTimings.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.tests

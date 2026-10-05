@@ -39,6 +39,14 @@ final class DictationController: ObservableObject {
     /// while `modelState` is `.loading`.
     @Published private(set) var loadStage: Transcriber.LoadStage?
     @Published private(set) var loadStarted: Date?
+    /// When the current step began, and how long each step took last time
+    /// (nil before a model's first ordinary load), for the bar and time left.
+    @Published private(set) var loadStageStarted: Date?
+    @Published private(set) var loadEstimate: LoadTimings?
+    /// Whether Apple's newer on-device model (iOS 26) is on this iPhone, and
+    /// the progress of its download while iOS fetches it.
+    @Published private(set) var appleModel: AppleAnalyzer.State = .unsupported
+    @Published private(set) var appleModelProgress: Double?
     /// Bumped whenever History changes, so its views reload.
     @Published private(set) var historyVersion = 0
     /// True while a saved recording is being transcribed again.
@@ -61,6 +69,11 @@ final class DictationController: ObservableObject {
     /// The load in flight, shared by everyone who needs the model, so a
     /// dictation can wait for it instead of falling back.
     private var loadTask: Task<Void, Never>?
+    /// When each step of the load in flight began.
+    private var loadStepStarts: [Int: Date] = [:]
+    /// Resumes a dictation that's waiting for the model, early when the user
+    /// chooses not to wait.
+    private var modelWait: CheckedContinuation<Void, Never>?
 
     enum Source { case keyboard, app }
 
@@ -98,6 +111,26 @@ final class DictationController: ObservableObject {
 
     func refreshDownloadedModels() {
         downloadedModels = Set(ModelChoice.allCases.filter { Transcriber.isDownloaded($0) })
+        Task { appleModel = await AppleAnalyzer.state() }
+    }
+
+    /// Asks iOS to download Apple's newer speech model for this iPhone's
+    /// language. Only when the user taps it: it's a download from Apple.
+    func installAppleModel() async {
+        guard #available(iOS 26.0, *), appleModelProgress == nil else { return }
+        appleModelProgress = 0
+        defer { appleModelProgress = nil }
+        do {
+            try await AppleAnalyzer.install { progress in
+                Task { @MainActor [weak self] in
+                    guard let self, self.appleModelProgress != nil else { return }
+                    self.appleModelProgress = progress
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        appleModel = await AppleAnalyzer.state()
     }
 
     /// Puts `modelState` in line with what's on the device, without loading
@@ -163,19 +196,32 @@ final class DictationController: ObservableObject {
     }
 
     private func performLoad(_ choice: ModelChoice) async {
+        // The first load on an iPhone compiles the model and takes minutes;
+        // its timings would say nothing about the next one, so only ordinary
+        // loads are measured and used as estimates.
+        let ordinary = Settings.loadedModels.contains(choice.rawValue)
+        let started = Date()
+        loadStepStarts = [0: started]
         modelState = .loading
-        loadStarted = Date()
+        loadStarted = started
+        loadStageStarted = started
+        loadEstimate = ordinary ? Settings.loadTimings(for: choice.rawValue) : nil
         loadStage = Transcriber.LoadStage(step: 0, total: Transcriber.LoadStage.total, label: "Starting")
         defer {
             loadStage = nil
             loadStarted = nil
+            loadStageStarted = nil
+            loadEstimate = nil
         }
         do {
             try await transcriber.load(choice) { stage in
+                let now = Date()
                 Task { @MainActor [weak self] in
                     // Stages only move forward (FluidAudio reports some twice).
                     guard let self, let current = self.loadStage, stage.step > current.step else { return }
                     self.loadStage = stage
+                    self.loadStageStarted = now
+                    self.loadStepStarts[stage.step] = now
                 }
             }
             // The user may have picked another model while this one loaded;
@@ -184,6 +230,12 @@ final class DictationController: ObservableObject {
             modelState = .ready
             engine = await transcriber.currentEngine
             Settings.loadedModels.insert(choice.rawValue)
+            // A CPU load reports no steps and isn't the usual case.
+            if ordinary, engine == .parakeetNeuralEngine,
+               let timings = LoadTimings(stepStarts: loadStepStarts, finished: Date(),
+                                         stepCount: Transcriber.LoadStage.total + 1) {
+                Settings.setLoadTimings(timings, for: choice.rawValue)
+            }
         } catch {
             guard ModelChoice.current == choice else { return }
             modelState = .failed(error.localizedDescription)
@@ -494,17 +546,21 @@ final class DictationController: ObservableObject {
             do {
                 // A downloaded model that is still loading (right after a
                 // cold start from the keyboard, or the first load after a
-                // download) is worth waiting for. Falling back to Apple here
-                // is what made Parakeet look missing.
+                // download) is worth waiting for, unless the user said not
+                // to wait: then Apple's model takes this one, straight away.
+                var fallbackReason = parakeetUnavailableReason ?? "Parakeet wasn't ready."
                 if choice.isParakeet, Transcriber.isDownloaded(choice), modelState != .ready {
-                    waitingForModel = true
-                    await loadModelIfDownloaded()
-                    waitingForModel = false
+                    if Settings.appleWhileLoading, !Settings.parakeetOnly {
+                        fallbackReason = "\(choice.title) was still loading, and Don't wait for Parakeet is on."
+                        Task { await loadModelIfDownloaded() }
+                    } else if await waitForModel() == .skipped {
+                        fallbackReason = "You chose not to wait for \(choice.title) to load."
+                    }
                 }
                 let output = try await transcriber.transcribe(
                     samples, sampleRate: rate, preferred: choice,
                     allowApple: !Settings.parakeetOnly,
-                    fallbackReason: parakeetUnavailableReason ?? "Parakeet wasn't ready."
+                    fallbackReason: fallbackReason
                 )
                 engine = output.engine
                 let text = TextProcessor.clean(output.text, options: Settings.processorOptions)
@@ -547,6 +603,41 @@ final class DictationController: ObservableObject {
             setPhase(.ready)
             extendSession()
         }
+    }
+
+    enum ModelWait { case loaded, skipped }
+
+    /// Waits for the model in flight to finish loading, or for the user to
+    /// tap "Use Apple's model now" (`useAppleNow`), whichever comes first.
+    /// The load keeps going either way, for the next dictation.
+    private func waitForModel() async -> ModelWait {
+        waitingForModel = true
+        skippedModelWait = false
+        defer { waitingForModel = false }
+        let load = Task { await loadModelIfDownloaded() }
+        await withCheckedContinuation { continuation in
+            modelWait = continuation
+            Task { @MainActor [weak self] in
+                await load.value
+                self?.resumeModelWait()
+            }
+        }
+        return skippedModelWait ? .skipped : .loaded
+    }
+
+    private var skippedModelWait = false
+
+    private func resumeModelWait() {
+        modelWait?.resume()
+        modelWait = nil
+    }
+
+    /// Transcribes the waiting dictation with Apple's on-device model instead
+    /// of waiting for Parakeet to load.
+    func useAppleNow() {
+        guard waitingForModel, !Settings.parakeetOnly else { return }
+        skippedModelWait = true
+        resumeModelWait()
     }
 
     /// Failed dictations go in History too, with their audio, so they can be

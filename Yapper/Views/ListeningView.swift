@@ -69,9 +69,22 @@ struct ListeningView: View {
                      : "Transcribing on your iPhone…")
                     .font(Theme.font(15))
                     .foregroundStyle(Theme.textMuted)
-                if controller.waitingForModel, let stage = controller.loadStage {
-                    LoadProgress(stage: stage, started: controller.loadStarted)
+                if controller.waitingForModel {
+                    if let stage = controller.loadStage {
+                        LoadProgress(stage: stage, started: controller.loadStarted,
+                                     stageStarted: controller.loadStageStarted, estimate: controller.loadEstimate)
+                            .frame(maxWidth: 280)
+                    }
+                    if !Settings.parakeetOnly {
+                        Button {
+                            controller.useAppleNow()
+                        } label: {
+                            Label("Don't wait: use Apple on-device", systemImage: "bolt.fill")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
                         .frame(maxWidth: 280)
+                        .padding(.top, 8)
+                    }
                 }
             }
         default:

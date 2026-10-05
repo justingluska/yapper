@@ -26,7 +26,8 @@ struct SpeechEngineCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if controller.modelState == .loading, let stage = controller.loadStage {
-                LoadProgress(stage: stage, started: controller.loadStarted)
+                LoadProgress(stage: stage, started: controller.loadStarted,
+                             stageStarted: controller.loadStageStarted, estimate: controller.loadEstimate)
             }
 
             if let problem = controller.liveActivityProblem {
@@ -93,6 +94,9 @@ struct SpeechEngineCard: View {
 
     private var statusText: String {
         if isLoading {
+            if Settings.appleWhileLoading, !Settings.parakeetOnly {
+                return "Loading \(ModelChoice.current.title) onto your iPhone's Neural Engine. You can already dictate: until it's ready, Apple on-device transcribes instantly."
+            }
             return "Loading \(ModelChoice.current.title) onto your iPhone's Neural Engine. You can already dictate; your first words are transcribed as soon as it's ready."
         }
         if controller.isSessionLive {
@@ -130,7 +134,7 @@ struct SessionToggle: View {
         .alert("Loading \(ModelChoice.current.title)", isPresented: $firstLoadNote) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds.\n\nThe Speech engine card on Home shows each step as it goes. You can keep using your phone. The Dynamic Island turns blue when the engine is ready.")
+            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds, and Yapper shows the time left.\n\nThe Speech engine card on Home shows each step as it goes. You can keep using your phone. The Dynamic Island turns blue when the engine is ready.\n\nDon't want to wait? Turn on Don't wait for Parakeet in Speech models, and Apple on-device takes your dictations until it's ready.")
         }
     }
 }
@@ -146,7 +150,7 @@ struct HowItWorks: View {
             point("Why is it slow to start?",
                   "Turning the engine on loads the speech model into your iPhone's Neural Engine. The very first time, iOS also optimizes the model for your exact chip, which can take a few minutes. It keeps the result, so after that the engine starts in a few seconds. Turning the engine off takes the model back out of memory, which is why it isn't instant every time.")
             point("Why cloud apps feel quicker to start.",
-                  "They send your audio to a server, so there's no model on the phone to get ready. Yapper does the work on your iPhone instead: once the model is loaded it's just as fast, it works offline, and your voice never leaves the phone. If you want instant starts, choose Apple on-device in Settings: nothing to load, less accurate.")
+                  "They send your audio to a server, so there's no model on the phone to get ready. Yapper does the work on your iPhone instead: once the model is loaded it's just as fast, it works offline, and your voice never leaves the phone. If you want instant starts, choose Apple on-device in Settings (nothing to load, less accurate), or turn on Don't wait for Parakeet to use it only while Parakeet loads.")
             point("The orange dot.",
                   "iOS shows it the whole time the engine is on, and apps can't change its color. Yapper's own sign is in the Dynamic Island: blue while the engine is ready, red while it's listening, amber while it types. Yapper only keeps audio while you're dictating, and the engine switches itself off after the time you choose in Settings, or when you turn it off here, in the keyboard, or from the Dynamic Island.")
         }
@@ -214,7 +218,12 @@ struct ModelStatusText: View {
 
     private var text: String {
         if choice == .apple {
-            return isCurrent ? "In use, built into iOS" : "Built into iOS"
+            let base = isCurrent ? "In use, built into iOS" : "Built into iOS"
+            switch controller.appleModel {
+            case .installed: return "\(base), newest model"
+            case .notInstalled: return "\(base), older model"
+            case .unsupported: return base
+            }
         }
         if isCurrent {
             switch controller.modelState {
@@ -257,6 +266,7 @@ struct ModelStatusText: View {
 struct ModelsSection: View {
     @EnvironmentObject private var controller: DictationController
     @State private var parakeetOnly = Settings.parakeetOnly
+    @State private var appleWhileLoading = Settings.appleWhileLoading
 
     var body: some View {
         Section {
@@ -268,7 +278,7 @@ struct ModelsSection: View {
                 .padding(.top, 8)
                 .padding(.bottom, 4)
         } footer: {
-            Text("Tap a model to use it. Parakeet models are downloaded once from Hugging Face, pinned to an exact version, and after that Yapper works offline. Apple on-device is built into iOS: nothing to download, less accurate.")
+            Text("Tap a model to use it. Parakeet models are downloaded once from Hugging Face, pinned to an exact version, and after that Yapper works offline. Apple on-device is built into iOS: it starts instantly with nothing to load, and is less accurate.")
                 .padding(.top, 4)
         }
 
@@ -278,10 +288,16 @@ struct ModelsSection: View {
                 .onChange(of: parakeetOnly) { _, value in Settings.parakeetOnly = value }
                 // Choosing Apple turns it off behind this view's back.
                 .onAppear { parakeetOnly = Settings.parakeetOnly }
+            if !parakeetOnly {
+                Toggle("Don't wait for Parakeet", isOn: $appleWhileLoading)
+                    .onChange(of: appleWhileLoading) { _, value in Settings.appleWhileLoading = value }
+            }
         } footer: {
             Text(parakeetOnly
                  ? "Yapper never uses Apple's recognizer. If Parakeet isn't downloaded the engine won't turn on, and if it's still getting ready a dictation waits for it."
-                 : "While no Parakeet model is ready, Apple's on-device recognizer fills in. History says which engine did each dictation, and why.")
+                 : appleWhileLoading
+                 ? "While Parakeet loads, Apple on-device transcribes straight away, so you never wait. Once Parakeet is ready it takes over. History says which engine did each dictation, and why."
+                 : "While no Parakeet model is ready, Apple's on-device recognizer fills in. A dictation made while Parakeet is still loading waits for it, with a button to use Apple's instead. History says which engine did each dictation, and why.")
                 .padding(.top, 4)
         }
         }
@@ -361,6 +377,25 @@ struct ModelRow: View {
                 .buttonStyle(SecondaryButtonStyle())
                 .disabled(anyDownload)
                 .padding(.leading, 34)
+            } else if choice == .apple, controller.appleModel == .notInstalled {
+                if let progress = controller.appleModelProgress {
+                    ProgressView(value: progress)
+                        .tint(Theme.textEmphasis)
+                        .padding(.leading, 34)
+                } else {
+                    Button {
+                        Task { await controller.installAppleModel() }
+                    } label: {
+                        Label("Get Apple's newest model", systemImage: "arrow.down.circle")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .padding(.leading, 34)
+                }
+                Text("More accurate than the older one Yapper uses now. iOS downloads it from Apple and shares it with other apps.")
+                    .font(Theme.font(12))
+                    .foregroundStyle(Theme.textFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 34)
             } else if isCurrent, case let .failed(message) = controller.modelState {
                 Text(message)
                     .font(Theme.font(12))
@@ -401,29 +436,53 @@ struct ModelsView: View {
     }
 }
 
-/// Loading the model: which of the five steps, a bar that moves step by
-/// step, and how long it's been. Core ML gives no percentage, so the steps
-/// are the honest measure; the first load spends most of its time on the
-/// encoder while iOS optimizes it.
+/// Loading the model: which of the five steps, a bar, and how long it's
+/// been or how long is left. Core ML gives no percentage, so after the first
+/// ordinary load the bar and the time left come from how long each step took
+/// last time; before that the bar moves step by step.
 struct LoadProgress: View {
     let stage: Transcriber.LoadStage
     let started: Date?
+    var stageStarted: Date?
+    var estimate: LoadTimings?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ProgressView(value: Double(max(stage.step, 0)) + 0.5, total: Double(stage.total) + 0.5)
-                .tint(Theme.ready)
-                .animation(.easeInOut(duration: 0.3), value: stage.step)
-            HStack {
-                Text(stage.step > 0 ? "Step \(stage.step) of \(stage.total): \(stage.label)" : "Starting")
-                Spacer()
-                if let started {
-                    Text(timerInterval: started...Date.distantFuture, countsDown: false)
-                        .monospacedDigit()
+        TimelineView(.periodic(from: .now, by: 0.25)) { context in
+            let timed = timedProgress(at: context.date)
+            VStack(alignment: .leading, spacing: 6) {
+                ProgressView(value: timed?.fraction ?? stepFraction)
+                    .tint(Theme.ready)
+                    .animation(.linear(duration: 0.25), value: timed?.fraction ?? stepFraction)
+                HStack {
+                    Text(stage.step > 0 ? "Step \(stage.step) of \(stage.total): \(stage.label)" : "Starting")
+                    Spacer()
+                    if let timed {
+                        Text(timeLeft(timed.remaining))
+                            .monospacedDigit()
+                    } else if let started {
+                        Text(timerInterval: started...Date.distantFuture, countsDown: false)
+                            .monospacedDigit()
+                    }
                 }
+                .font(Theme.font(13))
+                .foregroundStyle(Theme.textMuted)
             }
-            .font(Theme.font(13))
-            .foregroundStyle(Theme.textMuted)
         }
+    }
+
+    private var stepFraction: Double {
+        (Double(max(stage.step, 0)) + 0.5) / (Double(stage.total) + 0.5)
+    }
+
+    private func timedProgress(at now: Date) -> (fraction: Double, remaining: TimeInterval)? {
+        guard let estimate, estimate.total > 0, let stageStarted else { return nil }
+        return estimate.progress(step: stage.step, inStep: now.timeIntervalSince(stageStarted))
+    }
+
+    private func timeLeft(_ seconds: TimeInterval) -> String {
+        let whole = Int(seconds.rounded(.up))
+        if whole < 2 { return "Almost done" }
+        if whole < 60 { return "About \(whole) s left" }
+        return "About \(Int((seconds / 60).rounded(.up))) min left"
     }
 }

@@ -10,8 +10,8 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
     case ultra
     /// Parakeet v3: the previous default, 480 MB. Fallback if Ultra misbehaves.
     case v3
-    /// Apple's on-device recognizer: built in, nothing to download, less
-    /// accurate.
+    /// Apple's on-device speech recognition: built in, starts instantly.
+    /// SpeechAnalyzer on iOS 26+, the older recognizer before that.
     case apple
 
     var id: String { rawValue }
@@ -39,7 +39,7 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .ultra: return "Most accurate. 25 languages."
         case .v3: return "The previous version. 25 languages, smaller download."
-        case .apple: return "Built into iOS. Nothing to download, starts instantly, less accurate."
+        case .apple: return "Built into iOS. Starts instantly, nothing to load. Less accurate than Parakeet."
         }
     }
 
@@ -246,15 +246,15 @@ actor Transcriber {
         let started = Date()
 
         if preferred == .apple {
-            let text = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
-            return Output(text: text, engine: .apple, model: ModelChoice.apple.title,
+            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
+            return Output(text: text, engine: engine, model: ModelChoice.apple.title,
                           processingTime: Date().timeIntervalSince(started), note: nil)
         }
 
         guard let asr, let choice = loadedChoice else {
             guard allowApple else { throw TranscriberError.parakeetUnavailable(fallbackReason) }
-            let text = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
-            return Output(text: text, engine: .apple, model: nil, processingTime: Date().timeIntervalSince(started),
+            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
+            return Output(text: text, engine: engine, model: nil, processingTime: Date().timeIntervalSince(started),
                           note: fallbackReason)
         }
 
@@ -315,7 +315,10 @@ actor Transcriber {
     }
 }
 
-/// Apple's recognizer, forced on-device, used before Parakeet is ready.
+/// Apple's on-device speech recognition. On iOS 26 and later that's
+/// SpeechAnalyzer, the newer, faster model behind Notes and Voice Memos
+/// transcription, when its files are on this iPhone. Otherwise it's the older
+/// recognizer, forced to run on the device.
 enum AppleSpeech {
     static var isAvailable: Bool {
         guard let recognizer = SFSpeechRecognizer() else { return false }
@@ -328,18 +331,20 @@ enum AppleSpeech {
         }
     }
 
-    static func transcribe(_ samples: [Float], sampleRate: Double) async throws -> String {
+    /// Transcribes with the newer model when it can, the older one otherwise,
+    /// and says which one did it.
+    static func transcribe(_ samples: [Float], sampleRate: Double) async throws -> (text: String, engine: Engine) {
+        if #available(iOS 26.0, *), await AppleAnalyzer.state() == .installed {
+            return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer)
+        }
+        return (try await recognize(samples, sampleRate: sampleRate), .apple)
+    }
+
+    private static func recognize(_ samples: [Float], sampleRate: Double) async throws -> String {
         guard let recognizer = SFSpeechRecognizer(), recognizer.supportsOnDeviceRecognition,
               SFSpeechRecognizer.authorizationStatus() == .authorized,
-              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
-              let channel = buffer.floatChannelData?[0]
+              let buffer = AppleAnalyzer.buffer(samples, sampleRate: sampleRate)
         else { throw Transcriber.TranscriberError.noEngine }
-
-        samples.withUnsafeBufferPointer { source in
-            channel.update(from: source.baseAddress!, count: samples.count)
-        }
-        buffer.frameLength = AVAudioFrameCount(samples.count)
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
@@ -361,5 +366,134 @@ enum AppleSpeech {
                 }
             }
         }
+    }
+}
+
+/// Apple's SpeechAnalyzer model (iOS 26+). iOS keeps its files, shared by
+/// every app; when they aren't on this iPhone for its language, iOS
+/// downloads them from Apple when the user asks.
+enum AppleAnalyzer {
+    enum State: Equatable {
+        /// Older iOS, or no model for this iPhone's language.
+        case unsupported
+        case notInstalled
+        case installed
+    }
+
+    enum AnalyzerError: LocalizedError {
+        case unavailable
+        case audioFormat
+
+        var errorDescription: String? {
+            switch self {
+            case .unavailable: return "Apple's newer speech model isn't on this iPhone."
+            case .audioFormat: return "Apple's speech model couldn't read this audio."
+            }
+        }
+    }
+
+    static func state() async -> State {
+        guard #available(iOS 26.0, *) else { return .unsupported }
+        guard SpeechTranscriber.isAvailable,
+              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
+        else { return .unsupported }
+        let installed = await SpeechTranscriber.installedLocales
+        let id = locale.identifier(.bcp47)
+        return installed.contains { $0.identifier(.bcp47) == id } ? .installed : .notInstalled
+    }
+
+    /// Asks iOS to download the model for this iPhone's language. `onProgress`
+    /// gets 0...1. The download is Apple's, between iOS and Apple, like the
+    /// files for the system's own dictation; no audio is involved.
+    @available(iOS 26.0, *)
+    static func install(onProgress: @escaping @Sendable (Double) -> Void) async throws {
+        guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
+            throw AnalyzerError.unavailable
+        }
+        guard let request = try await AssetInventory.assetInstallationRequest(supporting: [makeTranscriber(locale)])
+        else { return }
+        let progress = request.progress
+        let watcher = Task {
+            while !Task.isCancelled {
+                onProgress(progress.fractionCompleted)
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        defer { watcher.cancel() }
+        try await request.downloadAndInstall()
+        onProgress(1)
+    }
+
+    @available(iOS 26.0, *)
+    private static func makeTranscriber(_ locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [], attributeOptions: [])
+    }
+
+    @available(iOS 26.0, *)
+    static func transcribe(_ samples: [Float], sampleRate: Double) async throws -> String {
+        guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
+            throw AnalyzerError.unavailable
+        }
+        let transcriber = makeTranscriber(locale)
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        guard let source = buffer(samples, sampleRate: sampleRate),
+              let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]),
+              let audio = convert(source, to: format)
+        else { throw AnalyzerError.audioFormat }
+
+        // Collect results as they finalize; the sequence ends when the
+        // analyzer finishes.
+        let collector = Task {
+            var text = ""
+            for try await result in transcriber.results where result.isFinal {
+                text += String(result.text.characters)
+            }
+            return text
+        }
+        let (stream, input) = AsyncStream<AnalyzerInput>.makeStream()
+        input.yield(AnalyzerInput(buffer: audio))
+        input.finish()
+        if let end = try await analyzer.analyzeSequence(stream) {
+            try await analyzer.finalizeAndFinish(through: end)
+        } else {
+            await analyzer.cancelAndFinishNow()
+        }
+        return try await collector.value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Mono float samples as an audio buffer.
+    static func buffer(_ samples: [Float], sampleRate: Double) -> AVAudioPCMBuffer? {
+        guard !samples.isEmpty,
+              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+              let channel = buffer.floatChannelData?[0]
+        else { return nil }
+        samples.withUnsafeBufferPointer { source in
+            channel.update(from: source.baseAddress!, count: samples.count)
+        }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        return buffer
+    }
+
+    /// Converts a buffer to the format the analyzer wants, in one pass.
+    private static func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        if buffer.format == format { return buffer }
+        guard let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
+        let ratio = format.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 1024
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
+        var supplied = false
+        var error: NSError?
+        let status = converter.convert(to: output, error: &error) { _, inputStatus in
+            if supplied {
+                inputStatus.pointee = .endOfStream
+                return nil
+            }
+            supplied = true
+            inputStatus.pointee = .haveData
+            return buffer
+        }
+        guard status != .error, error == nil else { return nil }
+        return output
     }
 }

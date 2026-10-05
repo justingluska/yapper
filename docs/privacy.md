@@ -38,10 +38,14 @@ The only network request Yapper makes is downloading the speech model, which hap
 The files come from Hugging Face (huggingface.co), which, like any website, sees your device's IP address when it
 serves them. After that, Yapper works fully offline.
 
+On iOS 26 and later, if you tap "Get Apple's newest model" under Apple on-device, iOS downloads Apple's speech model
+for your language from Apple, the same way it does for its own dictation. That download is between iOS and Apple; no
+audio or text is involved, and Yapper never sends anything itself.
+
 ## Permissions
 
 - **Microphone:** to record while you dictate.
-- **Speech Recognition:** only to use Apple's on-device recognizer, when you choose it or before Parakeet is ready.
+- **Speech Recognition:** only to use Apple's on-device recognizer, when you choose it or while Parakeet isn't ready.
 
 You can turn either off at any time in iOS Settings › Yapper.
 
