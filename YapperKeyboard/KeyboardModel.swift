@@ -31,15 +31,39 @@ final class KeyboardModel: ObservableObject {
     private var poll: Timer?
     private var undoTimer: Timer?
     private var startTimeout: DispatchWorkItem?
-    private var insertRetries = 0
+    /// On screen (between viewDidAppear and viewDidDisappear) and the app
+    /// we're typing into is in the foreground. Only then does an insert land
+    /// in the text field; anything else would mark the transcript as used
+    /// and lose it.
+    private var visible = false
+    private var hostActive = true
+    private var hostObservers: [NSObjectProtocol] = []
 
     init(controller: KeyboardViewController) {
         self.controller = controller
         signals.observe(.stateChanged) { [weak self] in self?.refresh() }
-        signals.observe(.resultReady) { [weak self] in
-            self?.insertRetries = 2
-            self?.insertPendingResult()
-        }
+        signals.observe(.resultReady) { [weak self] in self?.insertPendingResult() }
+        // Going to Yapper and swiping back doesn't make the keyboard appear
+        // again in apps that keep it up (Termius, for one): the host app just
+        // goes to the background and comes back. So follow the host app too.
+        let center = NotificationCenter.default
+        hostObservers = [
+            center.addObserver(forName: .NSExtensionHostWillResignActive, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.hostActive = false }
+            },
+            center.addObserver(forName: .NSExtensionHostDidBecomeActive, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.hostActive = true
+                    self.refresh()
+                    self.insertPendingResult()
+                }
+            },
+        ]
+    }
+
+    deinit {
+        hostObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
     /// A model frozen in one state, for screenshots of the layout outside a
@@ -103,12 +127,18 @@ final class KeyboardModel: ObservableObject {
         errorShownFor = Bridge.lastError
         refresh()
         startPolling()
-        // Back from a cold start: the text is waiting.
-        insertRetries = 1
+    }
+
+    /// The text field is connected once the keyboard is on screen, so a
+    /// transcript waiting from a cold start goes in now.
+    func didAppear() {
+        visible = true
+        hostActive = true
         insertPendingResult()
     }
 
     func disappear() {
+        visible = false
         poll?.invalidate()
         poll = nil
     }
@@ -148,6 +178,10 @@ final class KeyboardModel: ObservableObject {
             errorShownFor = error
             banner = error
         }
+        // The result signal can arrive before its text is readable (shared
+        // defaults lag across processes) or while this keyboard was
+        // suspended; the poll catches both.
+        insertPendingResult()
     }
 
     private var errorShownFor: String?
@@ -205,17 +239,13 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func insertPendingResult() {
-        guard let result = Bridge.unconsumedResult else {
-            // Cross-process UserDefaults can lag the Darwin notification.
-            if insertRetries > 0 {
-                insertRetries -= 1
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.insertPendingResult() }
-            }
-            return
-        }
+        // Not on screen, or the app behind us is in the background: leave the
+        // text waiting. didAppear, the host coming back, or the poll will
+        // insert it.
+        guard visible, hostActive, hasFullAccess, let proxy,
+              let result = Bridge.unconsumedResult else { return }
         // Claim before inserting, so a duplicate notification can't insert twice.
         Bridge.markConsumed(result)
-        guard let proxy else { return }
         let fitted = TextProcessor.fit(
             result.text,
             before: proxy.documentContextBeforeInput,

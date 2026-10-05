@@ -48,6 +48,11 @@ final class KeyboardViewController: UIInputViewController {
         model.appear()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        model.didAppear()
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.disappear()
