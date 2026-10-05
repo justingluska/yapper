@@ -6,13 +6,13 @@ import Speech
 
 /// Speech-to-text engines Yapper can use. Everything runs on the device.
 enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
+    /// Apple's on-device speech recognition: built in, starts instantly. The
+    /// default. SpeechAnalyzer on iOS 26+, the older recognizer before that.
+    case apple
     /// Parakeet Ultra: Moondream's post-training of NVIDIA Parakeet TDT 0.6B v3, the most accurate, 632 MB.
     case ultra
     /// Parakeet v3: the previous default, 480 MB. Fallback if Ultra misbehaves.
     case v3
-    /// Apple's on-device speech recognition: built in, starts instantly.
-    /// SpeechAnalyzer on iOS 26+, the older recognizer before that.
-    case apple
 
     var id: String { rawValue }
 
@@ -39,7 +39,7 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .ultra: return "Most accurate. 25 languages."
         case .v3: return "The previous version. 25 languages, smaller download."
-        case .apple: return "Built into iOS. Starts instantly, nothing to load. Less accurate than Parakeet."
+        case .apple: return "The default. Built into iOS: starts instantly, nothing to download or load. Less accurate than Parakeet."
         }
     }
 
@@ -51,8 +51,18 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Apple on-device unless the user picked something else. Installs from
+    /// before Apple became the default kept their choice implicit, so one
+    /// with a Parakeet model on the device keeps using it.
     static var current: ModelChoice {
-        get { ModelChoice(rawValue: Bridge.defaults.string(forKey: Settings.Key.modelChoice) ?? "") ?? .ultra }
+        get {
+            if let stored = ModelChoice(rawValue: Bridge.defaults.string(forKey: Settings.Key.modelChoice) ?? "") {
+                return stored
+            }
+            let initial = [ModelChoice.ultra, .v3].first(where: Transcriber.isDownloaded) ?? .apple
+            Bridge.defaults.set(initial.rawValue, forKey: Settings.Key.modelChoice)
+            return initial
+        }
         set { Bridge.defaults.set(newValue.rawValue, forKey: Settings.Key.modelChoice) }
     }
 }

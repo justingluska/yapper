@@ -8,7 +8,7 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     enum Step: Int, CaseIterable {
-        // The model comes early: if the user wants it, it downloads while
+        // The model comes early: if the user wants Parakeet, it downloads while
         // they add the keyboard.
         case welcome, microphone, model, keyboard, fullAccess, tryIt
     }
@@ -183,11 +183,11 @@ struct OnboardingView: View {
 
     private var model: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageTitle(title: "Speech model", subtitle: "Optional. You can do it any time from Settings.")
-            Text("Yapper works best with Parakeet, a speech model from NVIDIA that runs on your iPhone's Neural Engine. It's a one-time \(ModelChoice.ultra.downloadMB) MB download, so Wi-Fi is a good idea.")
+            PageTitle(title: "Speech model", subtitle: "You can change it any time in Settings.")
+            Text("Yapper uses Apple's on-device speech model by default. It's built into iOS, so there's nothing to download and it starts instantly. Like everything in Yapper, it runs on this iPhone and nothing is sent anywhere.")
                 .font(Theme.font(15))
                 .foregroundStyle(Theme.text)
-            Text("If you download it, it keeps going while you finish setting up. If you leave Yapper for a moment (to add the keyboard), it picks up again when you come back. Until it's done, Apple's speech recognizer does the work, also on this iPhone.")
+            Text("Want it more accurate? Yapper also supports Parakeet, a speech model from NVIDIA that runs on your iPhone's Neural Engine. It's a one-time \(ModelChoice.ultra.downloadMB) MB download (Wi-Fi is a good idea) and takes a few seconds to start each time you turn Yapper on. It keeps downloading while you finish setting up, and Apple's model fills in until it's ready.")
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
             Card {
@@ -202,13 +202,20 @@ struct OnboardingView: View {
                 Button("Continue") { go(to: .keyboard) }
                     .buttonStyle(PrimaryButtonStyle())
             } else {
-                Button("Download \(ModelChoice.ultra.downloadMB) MB and continue") {
-                    Task { await controller.downloadModel(.ultra) }
+                Button(controller.appleModel == .notInstalled ? "Use Apple's model (get the newest)" : "Use Apple's model") {
+                    // iOS 26 without Apple's newest model for this language:
+                    // ask iOS to fetch it. Until then the older one works.
+                    if controller.appleModel == .notInstalled {
+                        Task { await controller.installAppleModel() }
+                    }
                     go(to: .keyboard)
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Button("Not now") { go(to: .keyboard) }
-                    .buttonStyle(SecondaryButtonStyle())
+                Button("Download Parakeet, \(ModelChoice.ultra.downloadMB) MB") {
+                    Task { await controller.downloadModel(.ultra) }
+                    go(to: .keyboard)
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
         }
     }

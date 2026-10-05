@@ -260,7 +260,7 @@ final class DictationController: ObservableObject {
     func downloadModel(_ choice: ModelChoice = ModelChoice.current) async {
         guard choice.isParakeet else { return }
         if case .downloading = modelState { return }
-        if choice != ModelChoice.current { await selectModel(choice) }
+        if choice != ModelChoice.current { await selectModel(choice) } else { ModelChoice.current = choice }
         Settings.wantsModelDownload = true
         modelState = .downloading(progress: 0, label: "Starting download")
         // Downloads stop if iOS suspends the app, so keep it awake meanwhile.
@@ -322,7 +322,7 @@ final class DictationController: ObservableObject {
     }
 
     /// Removes a model from the device. Deleting the one in use switches to
-    /// the other Parakeet model when that one is downloaded.
+    /// the other Parakeet model when that one is downloaded, else to Apple.
     func deleteModel(_ choice: ModelChoice) async {
         guard choice.isParakeet else { return }
         if case .downloading = modelState, choice == ModelChoice.current { return }
@@ -335,9 +335,10 @@ final class DictationController: ObservableObject {
         try? Transcriber.deleteModel(choice)
         Settings.loadedModels.remove(choice.rawValue)
         refreshDownloadedModels()
-        if choice == ModelChoice.current,
-           let other = ModelChoice.allCases.first(where: { $0 != choice && $0.isParakeet && downloadedModels.contains($0) }) {
-            await selectModel(other)
+        if choice == ModelChoice.current {
+            // The other Parakeet model if it's here, else the default.
+            let other = ModelChoice.allCases.first(where: { $0 != choice && $0.isParakeet && downloadedModels.contains($0) })
+            await selectModel(other ?? .apple)
         }
     }
 

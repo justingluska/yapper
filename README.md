@@ -68,9 +68,9 @@ cap how much you can say before you pay. Yapper does none of that.
 - Personal dictionary: "when I say X, write Y" for names, brands and jargon
 
 **Speech engines, all on the device**
+- **Apple on-device**, the default: built in, nothing to download or load, starts instantly, less accurate. On iOS 26
+  and later it uses Apple's newest on-device model (SpeechAnalyzer, the one behind Notes and Voice Memos transcription)
 - **Parakeet Ultra** (most accurate, 632 MB download) or **Parakeet v3** (480 MB), on the Neural Engine
-- **Apple on-device**: built in, nothing to load, starts instantly, less accurate. On iOS 26 and later it uses
-  Apple's newest on-device model (SpeechAnalyzer, the one behind Notes and Voice Memos transcription)
 - **Don't wait for Parakeet**: while Parakeet loads, Apple on-device takes your dictations straight away
 - Loading shows each step and, after the first time, a progress bar and the time left, measured from the last load
 - Every dictation records which engine transcribed it, and why
