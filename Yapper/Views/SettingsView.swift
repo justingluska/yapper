@@ -132,10 +132,10 @@ struct SettingsView: View {
                 Button("Keyboard settings") { KeyboardStatus.openSettings() }
                 Button("Action Button and Control Center") { showActionButtonHelp = true }
                 NavigationLink("Privacy") { PrivacyView() }
-                Link("Privacy policy", destination: URL(string: "https://goldpenguin.org/yapper/privacy/")!)
-                Link("Terms of service", destination: URL(string: "https://goldpenguin.org/yapper/terms/")!)
+                Link("Privacy policy", destination: URL(string: "https://digitalmundo.org/yapper/privacy/")!)
+                Link("Terms of service", destination: URL(string: "https://digitalmundo.org/yapper/terms/")!)
                 Link("Help: DM @gluska on X", destination: URL(string: "https://x.com/gluska")!)
-                Link("Setup help and FAQ", destination: URL(string: "https://goldpenguin.org/yapper/support/")!)
+                Link("Setup help and FAQ", destination: URL(string: "https://digitalmundo.org/yapper/support/")!)
                 NavigationLink("Licenses") { LicensesView() }
                 Link("Source code", destination: URL(string: "https://github.com/justingluska/yapper")!)
             } footer: {

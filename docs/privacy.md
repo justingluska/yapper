@@ -1,6 +1,6 @@
 # Yapper privacy policy
 
-Published at https://goldpenguin.org/yapper/privacy/ (Gold Penguin LLC). Keep the two in step.
+Published at https://digitalmundo.org/yapper/privacy/ (Digital Mundo LLC). Keep the two in step.
 
 _Last updated: 25 September 2026_
 
@@ -57,4 +57,4 @@ Yapper collects no data from anyone, including children.
 ## Changes and contact
 
 If this policy changes, the new version will be posted here with a new date.
-Questions: team@goldpenguin.org (or goldpenguin.org/contact)
+Questions: team@digitalmundo.org, or DM @gluska on X

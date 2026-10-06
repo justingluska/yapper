@@ -26,4 +26,4 @@ Yapper is free, private voice dictation for iPhone. Speech is transcribed on you
 ## Contact
 
 DM me on X, [@gluska](https://x.com/gluska): that's the fastest way to reach me. Email works too:
-team@goldpenguin.org.
+team@digitalmundo.org.

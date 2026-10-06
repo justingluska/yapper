@@ -13,7 +13,7 @@ Talk, and Yapper types it into any app. Speech is transcribed on your iPhone, ne
 [![On-device](https://img.shields.io/badge/speech-100%25%20on--device-0B6BDE)](#privacy)
 [![Build](https://github.com/justingluska/yapper/actions/workflows/build.yml/badge.svg)](https://github.com/justingluska/yapper/actions/workflows/build.yml)
 
-Coming soon to the App Store · [Privacy](https://goldpenguin.org/yapper/privacy/) · Questions? [DM @gluska on X](https://x.com/gluska)
+Coming soon to the App Store · [Privacy](https://digitalmundo.org/yapper/privacy/) · Questions? [DM @gluska on X](https://x.com/gluska)
 
 <img src="docs/images/hero.png" alt="Yapper on iPhone: the dictation keyboard listening, stats with a contribution grid, history, and the typing layout, in light and dark mode" width="900">
 
@@ -140,7 +140,7 @@ privacy label is "Data Not Collected".
   Hugging Face, pinned to exact commits so they can't change under you. Everything else runs with networking
   switched off in code (`ModelHub.offlineMode`).
 
-Full policy: [goldpenguin.org/yapper/privacy](https://goldpenguin.org/yapper/privacy/).
+Full policy: [digitalmundo.org/yapper/privacy](https://digitalmundo.org/yapper/privacy/).
 
 ## Screenshots
 
@@ -180,7 +180,7 @@ To build under your own Apple team, change the bundle IDs (`com.gluska.yapper…
 (`group.com.gluska.yapper`) in `project.yml` and `Shared/Common/Bridge.swift`.
 
 Then on the iPhone: Settings › General › Keyboard › Keyboards › Add New Keyboard › Yapper, and turn on Allow Full
-Access. The [support page](https://goldpenguin.org/yapper/support/) walks through it.
+Access. The [support page](https://digitalmundo.org/yapper/support/) walks through it.
 
 ## Architecture
 
@@ -318,11 +318,11 @@ security problems privately as described in [SECURITY.md](SECURITY.md).
 ## Support
 
 Questions, bugs or ideas: **DM me on X, [@gluska](https://x.com/gluska)**. That's the fastest way to reach me.
-Setup steps and common questions are on the [support page](https://goldpenguin.org/yapper/support/), and email
-(team@goldpenguin.org) works too. Found a bug in the code? [Open an issue](https://github.com/justingluska/yapper/issues).
+Setup steps and common questions are on the [support page](https://digitalmundo.org/yapper/support/), and email
+(team@digitalmundo.org) works too. Found a bug in the code? [Open an issue](https://github.com/justingluska/yapper/issues).
 
 ## License
 
-[MIT](LICENSE). Made by [Justin Gluska](https://x.com/gluska) and published by Gold Penguin, LLC.
-[Website](https://goldpenguin.org/yapper/) · [Privacy](https://goldpenguin.org/yapper/privacy/) ·
-[Terms](https://goldpenguin.org/yapper/terms/) · [Support](https://goldpenguin.org/yapper/support/) · DM [@gluska](https://x.com/gluska)
+[MIT](LICENSE). Made by [Justin Gluska](https://x.com/gluska) and published by Digital Mundo LLC.
+[Website](https://digitalmundo.org/yapper/) · [Privacy](https://digitalmundo.org/yapper/privacy/) ·
+[Terms](https://digitalmundo.org/yapper/terms/) · [Support](https://digitalmundo.org/yapper/support/) · DM [@gluska](https://x.com/gluska)

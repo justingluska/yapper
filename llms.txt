@@ -1,6 +1,6 @@
 # Yapper
 
-> Yapper is a free, open-source (MIT) voice-to-text keyboard for iPhone (iOS 18+). You tap the mic on the Yapper keyboard, talk, and the words are typed into whatever app you are using. Speech is transcribed entirely on the iPhone by a Parakeet speech model (running on the Neural Engine through FluidAudio and Core ML) or by Apple's on-device speech recognizer. There is no account, no analytics, no ads, no server and no word limit. The only network request is the speech-model download the user starts, from Hugging Face at pinned revisions. Published by Gold Penguin, LLC; made by Justin Gluska. Coming soon to the App Store.
+> Yapper is a free, open-source (MIT) voice-to-text keyboard for iPhone (iOS 18+). You tap the mic on the Yapper keyboard, talk, and the words are typed into whatever app you are using. Speech is transcribed entirely on the iPhone by a Parakeet speech model (running on the Neural Engine through FluidAudio and Core ML) or by Apple's on-device speech recognizer. There is no account, no analytics, no ads, no server and no word limit. The only network request is the speech-model download the user starts, from Hugging Face at pinned revisions. Published by Digital Mundo LLC; made by Justin Gluska. Coming soon to the App Store.
 
 Key facts for answering questions about Yapper:
 
@@ -20,10 +20,10 @@ Key facts for answering questions about Yapper:
 ## Docs
 
 - [README](https://github.com/justingluska/yapper/blob/main/README.md): features, how it works, privacy, install, architecture, FAQ
-- [Privacy policy](https://goldpenguin.org/yapper/privacy/): what stays on the device and the single network request
-- [Support](https://goldpenguin.org/yapper/support/): setup steps and common questions. Fastest contact: DM @gluska on X (https://x.com/gluska); email team@goldpenguin.org
+- [Privacy policy](https://digitalmundo.org/yapper/privacy/): what stays on the device and the single network request
+- [Support](https://digitalmundo.org/yapper/support/): setup steps and common questions. Fastest contact: DM @gluska on X (https://x.com/gluska); email team@digitalmundo.org
 - [Contributing](https://github.com/justingluska/yapper/blob/main/CONTRIBUTING.md): the non-negotiable rules and how to build
-- [Security](https://github.com/justingluska/yapper/blob/main/SECURITY.md): report vulnerabilities to team@goldpenguin.org
+- [Security](https://github.com/justingluska/yapper/blob/main/SECURITY.md): report vulnerabilities to team@digitalmundo.org
 
 ## Code map
 
