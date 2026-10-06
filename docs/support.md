@@ -15,8 +15,9 @@ Yapper is free, private voice dictation for iPhone. Speech is transcribed on you
 
 - **Why does the keyboard open the Yapper app?** iOS doesn't let keyboards use the microphone, so the app does the
   listening. It only has to open once per session.
-- **Why is it slow to start the first time?** The first time a model loads, iOS optimizes it for your iPhone's chip,
-  which can take a few minutes. After that it loads in seconds.
+- **Why is it slow to start the first time?** Apple on-device, the default, starts instantly. Parakeet is slower: the
+  first time it loads, iOS optimizes it for your iPhone's chip, which can take a few minutes. After that it loads in
+  seconds, and "Don't wait for Parakeet" uses Apple's model in the meantime.
 - **Why the orange dot?** iOS shows it whenever an app has the microphone on. Turn the engine off in the app, the
   keyboard or the Dynamic Island to make it go away.
 - **The keyboard only types, it won't dictate.** Turn on Allow Full Access for Yapper in Settings › General ›

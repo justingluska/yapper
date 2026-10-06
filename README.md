@@ -27,11 +27,10 @@ sharing it with anyone else who does too. It will stay this way:
 - **Free, forever.** No price, no subscription, no "pro" tier, no word limits. Yapper will never charge you.
 - **Nothing collected, ever.** No account, no sign-up, no email, no analytics, no ads, no tracking, no crash reports.
   There is no Yapper server, so there is nowhere for your voice or your words to go.
-- **Works anywhere.** After the one-time model download, Yapper needs no internet at all: airplane mode, a cabin with
-  no signal, the middle of the desert.
-- **Nothing required from you.** No login and no phone number. It asks for the microphone, Speech Recognition only if
-  you pick Apple's recognizer, and Full Access only so the keyboard can hand your words to the Yapper app on your
-  phone.
+- **Works anywhere.** Yapper needs no internet at all: airplane mode, a cabin with no signal, the middle of the
+  desert. (Parakeet, if you choose it, is a one-time download; after that it's offline too.)
+- **Nothing required from you.** No login and no phone number. It asks for the microphone, Speech Recognition for Apple's
+  on-device model, and Full Access only so the keyboard can hand your words to the Yapper app on your phone.
 - **Open source.** MIT licensed, so you don't have to take any of this on trust: read the code, or build it yourself.
 
 — Justin Gluska ([@gluska](https://x.com/gluska))
@@ -41,10 +40,11 @@ sharing it with anyone else who does too. It will stay this way:
 Voice typing is faster than thumbs, but most dictation apps send your voice to a server, ask for an account, and
 cap how much you can say before you pay. Yapper does none of that.
 
-- **On-device.** Speech is turned into text on your iPhone's Neural Engine. Audio and text never leave the phone.
+- **On-device.** Speech is turned into text on your iPhone. Audio and text never leave the phone.
 - **Free, no limits.** No subscription, no word cap, no account, no "pro" tier.
 - **No tracking.** No analytics, no ads, no crash reporting, no server.
-- **Works offline.** After a one-time model download, Yapper works in airplane mode.
+- **Instant and offline.** Apple's on-device model is built into iOS: nothing to download, and it works in airplane
+  mode.
 - **Open source.** MIT licensed, so anyone can check every claim above.
 
 | | Yapper (on-device) | Typical cloud dictation |
@@ -53,7 +53,7 @@ cap how much you can say before you pay. Yapper does none of that.
 | Account | None | Usually required |
 | Limits | None | Often a weekly word cap on the free tier |
 | Price | Free | Often a monthly subscription |
-| Works offline | Yes, after the model download | No |
+| Works offline | Yes | No |
 | Can you read the code | Yes, MIT | Usually not |
 
 ## Features
@@ -98,9 +98,9 @@ cap how much you can say before you pay. Yapper does none of that.
 
 iOS doesn't let keyboards use the microphone, so Yapper has two halves:
 
-1. **The Yapper app** records and transcribes. It runs Parakeet through
-   [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine, or Apple's recognizer forced to run
-   on the device.
+1. **The Yapper app** records and transcribes, with Apple's on-device speech model (SpeechAnalyzer on iOS 26, the
+   older recognizer forced on-device before that) or, if you download it, Parakeet through
+   [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine.
 2. **The Yapper keyboard** is a remote control and a text inserter. It never touches audio and has no network code.
 
 The first time you tap the mic, the keyboard opens the app, which starts listening straight away. Swipe right along
@@ -203,7 +203,8 @@ screen in light and dark ([Screenshots](.github/workflows/screenshots.yml)). Rel
 - **[FluidAudio](https://github.com/FluidInference/FluidAudio)** 0.17.3 to run Parakeet with **Core ML** on the
   Apple Neural Engine (CPU fallback)
 - **Parakeet TDT 0.6B** speech models: Parakeet Ultra and Parakeet v3
-- **Speech framework** (`SFSpeechRecognizer` with `requiresOnDeviceRecognition`) as the built-in alternative
+- **Speech framework**: `SpeechAnalyzer` + `SpeechTranscriber` on iOS 26 (the default engine), `SFSpeechRecognizer`
+  with `requiresOnDeviceRecognition` before that
 - **ActivityKit** and **WidgetKit** for the Live Activity and the Control Center control; **App Intents** for Siri,
   Shortcuts and the Action Button
 - **AVFoundation** for recording and playback; App Group `UserDefaults` and Darwin notifications for the bridge
@@ -237,16 +238,17 @@ Full Access, the keyboard still types; it just can't dictate.
 <details>
 <summary><b>Why is the first load slow?</b></summary>
 
-The first time a Parakeet model runs, iOS compiles it for your iPhone's Neural Engine, which can take a few minutes,
-once. After that it loads in seconds. Until the model is ready, Apple's on-device recognizer does the work, unless you
-turn on "Only use Parakeet".
+Apple on-device, the default, has nothing to load. Parakeet does: the first time a Parakeet model runs, iOS compiles
+it for your iPhone's Neural Engine, which can take a few minutes, once. After that it loads in seconds, and Yapper shows
+the time left. A dictation made while it loads waits for it, with a button to use Apple's model instead; turn on
+"Don't wait for Parakeet" to always use Apple's model until Parakeet is ready.
 </details>
 
 <details>
 <summary><b>Which languages does it understand?</b></summary>
 
-Both Parakeet models cover 25 European languages, including English, and there's no language to pick. Apple's
-recognizer uses your iPhone's language. The typing layout is English (QWERTY).
+Apple's on-device model uses your iPhone's language. Both Parakeet models cover 25 European languages, including
+English, and there's no language to pick. The typing layout is English (QWERTY).
 </details>
 
 <details>

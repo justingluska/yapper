@@ -13,8 +13,8 @@ your audio, your text or anything about how you use the app.
 
 ## What stays on your iPhone
 
-- **Audio.** Yapper records only while you dictate. Speech is turned into text on your iPhone, by NVIDIA's Parakeet
-  model or by Apple's speech recognizer forced to run on the device. Each recording is kept on your iPhone for 1 day
+- **Audio.** Yapper records only while you dictate. Speech is turned into text on your iPhone, by Apple's on-device
+  speech model (the default) or by NVIDIA's Parakeet model if you download it. Each recording is kept on your iPhone for 1 day
   by default so you can play it back or transcribe it again. You can change that in Settings › Keep recordings,
   from Don't keep to Forever. Recordings are left out of iCloud backups.
 - **Text.** Your dictations, including failed attempts, are kept in History on your iPhone for as long as you choose
@@ -45,7 +45,8 @@ audio or text is involved, and Yapper never sends anything itself.
 ## Permissions
 
 - **Microphone:** to record while you dictate.
-- **Speech Recognition:** only to use Apple's on-device recognizer, when you choose it or while Parakeet isn't ready.
+- **Speech Recognition:** to use Apple's on-device speech model, the default, which runs on your iPhone and sends
+  nothing to Apple.
 
 You can turn either off at any time in iOS Settings › Yapper.
 
