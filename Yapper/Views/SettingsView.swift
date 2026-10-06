@@ -118,14 +118,12 @@ struct SettingsView: View {
                     Text("Yapper is completely free, made for the community of people who dictate all day. Questions, bugs or ideas? DM me on X, that's the fastest way to reach me.")
                         .font(Theme.font(15))
                         .foregroundStyle(Theme.text)
-                    NavigationLink("How Yapper is different") { DifferentView() }
-                        .font(Theme.font(15, .medium))
-                    NavigationLink("Good to know") { GoodToKnowView() }
-                        .font(Theme.font(15, .medium))
-                    Link("Message @gluska on X", destination: URL(string: "https://x.com/gluska")!)
-                        .font(Theme.font(15, .medium))
                 }
                 .padding(.vertical, 4)
+                // Each link is its own row: several links inside one row make the whole row a single tap target.
+                NavigationLink("How Yapper is different") { DifferentView() }
+                NavigationLink("Good to know") { GoodToKnowView() }
+                Link("Message @gluska on X", destination: URL(string: "https://x.com/gluska")!)
             } header: {
                 SectionLabel(text: "About")
             }
