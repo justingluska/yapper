@@ -183,6 +183,7 @@ targets:
       - path: YapperTests
       - path: Shared/Common/TextProcessor.swift
       - path: Shared/Common/LoadTimings.swift
+      - path: Yapper/Audio/AudioChunks.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.tests

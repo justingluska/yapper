@@ -74,6 +74,9 @@ final class DictationController: ObservableObject {
     /// Resumes a dictation that's waiting for the model, early when the user
     /// chooses not to wait.
     private var modelWait: CheckedContinuation<Void, Never>?
+    /// Dictations still being transcribed. The model stays in memory until
+    /// they're done, even if the engine turned off meanwhile (a phone call).
+    private var transcriptionsInFlight = 0
 
     enum Source { case keyboard, app }
 
@@ -131,6 +134,7 @@ final class DictationController: ObservableObject {
             errorMessage = error.localizedDescription
         }
         appleModel = await AppleAnalyzer.state()
+        prepareApple()
     }
 
     /// Puts `modelState` in line with what's on the device, without loading
@@ -249,8 +253,9 @@ final class DictationController: ObservableObject {
             while let running = loadTask {
                 await running.value
             }
-            guard !isSessionLive, !retranscribing else { return }
+            guard !isSessionLive, !retranscribing, transcriptionsInFlight == 0 else { return }
             await transcriber.unload()
+            await transcriber.releaseApple()
             refreshModelState()
         }
     }
@@ -315,10 +320,19 @@ final class DictationController: ObservableObject {
             _ = await AppleSpeech.requestPermission()
         }
         await transcriber.unload()
+        await transcriber.releaseApple()
         engine = .apple
         modelState = .notDownloaded
         refreshModelState()
         if isSessionLive { await loadModelIfDownloaded() }
+        prepareApple()
+    }
+
+    /// While the engine is on with Apple on-device, keeps its model readied
+    /// for the next dictation. Parakeet has its own load.
+    private func prepareApple() {
+        guard isSessionLive, ModelChoice.current == .apple else { return }
+        Task { await transcriber.prepareApple() }
     }
 
     /// Removes a model from the device. Deleting the one in use switches to
@@ -370,7 +384,7 @@ final class DictationController: ObservableObject {
         retranscribing = true
         defer {
             retranscribing = false
-            if !isSessionLive { releaseModel() }
+            if isSessionLive { prepareApple() } else { releaseModel() }
         }
         do {
             let audio = try RecordingStore.load(file)
@@ -449,6 +463,7 @@ final class DictationController: ObservableObject {
         // Start loading now, so the model is warm by the time the first
         // recording ends.
         Task { await loadModelIfDownloaded() }
+        prepareApple()
         return true
     }
 
@@ -532,7 +547,10 @@ final class DictationController: ObservableObject {
         Haptics.start()
     }
 
-    func finishRecording() {
+    /// `interrupted`: a phone call (or Siri) took the microphone mid-dictation.
+    /// What was said before it is still transcribed, and also copied, since
+    /// the keyboard only types a result in for two minutes.
+    func finishRecording(interrupted: Bool = false) {
         guard phase == .recording else { return }
         let samples = recorder.end()
         let rate = recorder.sampleRate
@@ -540,8 +558,14 @@ final class DictationController: ObservableObject {
         recordingStarted = nil
         Bridge.recordingStarted = nil
         setPhase(.transcribing)
+        transcriptionsInFlight += 1
+        // Once the microphone stops (a call, or the engine turned off), iOS
+        // no longer keeps Yapper running in the background; ask for time to
+        // finish this one.
+        let background = BackgroundTime.begin("Transcribe dictation")
 
         Task {
+            defer { background.end() }
             let id = UUID()
             let choice = ModelChoice.current
             do {
@@ -570,17 +594,24 @@ final class DictationController: ObservableObject {
                         // The keyboard types it; the clipboard keeps a copy
                         // to paste again anywhere.
                         Bridge.publish(text)
-                        if Settings.copyEveryDictation { Clipboard.copy(text) }
+                        if Settings.copyEveryDictation || interrupted { Clipboard.copy(text) }
                     } else {
                         Clipboard.copy(text)
                     }
                     lastText = text
-                    Haptics.success()
                     HistoryStore.append(DictationRecord(
                         id: id, text: text, raw: output.text, duration: duration, engine: output.engine.rawValue,
-                        model: output.model, processingTime: output.processingTime, note: output.note,
+                        model: output.model, processingTime: output.processingTime,
+                        note: interrupted ? [Self.interruptedNote, output.note].compactMap { $0 }.joined(separator: " ") : output.note,
                         audioFile: RecordingStore.save(samples, sampleRate: rate, id: id)
                     ))
+                    if interrupted {
+                        errorMessage = "A call or Siri stopped Yapper mid-dictation. What you said before it is in History and on the clipboard."
+                        Bridge.lastError = errorMessage
+                        Bridge.post(.stateChanged)
+                    } else {
+                        Haptics.success()
+                    }
                     StatsStore.record(words: text.split(whereSeparator: \.isWhitespace).count, seconds: duration)
                 } else {
                     let message = "Didn't catch anything. Try again a little closer to the mic."
@@ -596,6 +627,8 @@ final class DictationController: ObservableObject {
             }
             RecordingStore.prune()
             historyVersion += 1
+            transcriptionsInFlight -= 1
+            if isSessionLive { prepareApple() } else { releaseModel() }
             if recordingSource == .keyboard, UIApplication.shared.applicationState == .background {
                 presentingListening = false
             }
@@ -605,6 +638,8 @@ final class DictationController: ObservableObject {
             extendSession()
         }
     }
+
+    static let interruptedNote = "A call or Siri took the microphone, so this dictation stopped there."
 
     enum ModelWait { case loaded, skipped }
 
@@ -680,7 +715,7 @@ final class DictationController: ObservableObject {
         // stay off: restarting on our own would bring the mic back with
         // nobody asking for it. The next mic tap starts a new session.
         if phase == .recording {
-            finishRecording()
+            finishRecording(interrupted: true)
         }
         recorder.stop()
         expiry?.invalidate()
@@ -780,5 +815,28 @@ enum Haptics {
 enum Clipboard {
     static func copy(_ text: String) {
         UIPasteboard.general.setItems([[UTType.plainText.identifier: text]], options: [.localOnly: true])
+    }
+}
+
+/// Extra time from iOS to finish work after Yapper leaves the foreground
+/// without its microphone running, which is what normally keeps it alive.
+@MainActor
+final class BackgroundTime {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    static func begin(_ name: String) -> BackgroundTime {
+        let time = BackgroundTime()
+        time.id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak time] in
+            // Out of time: iOS suspends Yapper now. The transcription carries
+            // on when Yapper next runs.
+            MainActor.assumeIsolated { time?.end() }
+        }
+        return time
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }

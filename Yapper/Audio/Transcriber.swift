@@ -87,6 +87,9 @@ actor Transcriber {
 
     private var asr: AsrManager?
     private var loadedChoice: ModelChoice?
+    /// Apple's newest model, readied for the next dictation
+    /// (`AppleAnalyzer.Prepared`; iOS 26 types can't be stored directly).
+    private var preparedApple: AnyObject?
     private let converter = AudioConverter()
 
     static let parakeetSampleRate: Double = 16_000
@@ -247,6 +250,31 @@ actor Transcriber {
         }
     }
 
+    /// Readies Apple's newest model for the next dictation, so its first
+    /// words don't wait for the model to start. Called when the engine turns
+    /// on and after each dictation. If it fails, the dictation readies the
+    /// model itself and reports any error then.
+    func prepareApple() async {
+        guard #available(iOS 26.0, *), preparedApple == nil,
+              await AppleAnalyzer.state() == .installed,
+              let prepared = try? await AppleAnalyzer.prepare(),
+              preparedApple == nil
+        else { return }
+        preparedApple = prepared
+    }
+
+    /// Lets go of the readied Apple model, when the engine turns off.
+    func releaseApple() {
+        preparedApple = nil
+    }
+
+    /// The readied Apple model, for one dictation only: an analyzer takes
+    /// one recording.
+    private func takePreparedApple() -> AnyObject? {
+        defer { preparedApple = nil }
+        return preparedApple
+    }
+
     /// Transcribes mono samples captured at `sampleRate`. When no Parakeet
     /// model is loaded, Apple's recognizer does the work if `allowApple`,
     /// and `fallbackReason` (why Parakeet wasn't ready) is recorded with it.
@@ -256,14 +284,16 @@ actor Transcriber {
         let started = Date()
 
         if preferred == .apple {
-            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
+            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                  prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: ModelChoice.apple.title,
                           processingTime: Date().timeIntervalSince(started), note: nil)
         }
 
         guard let asr, let choice = loadedChoice else {
             guard allowApple else { throw TranscriberError.parakeetUnavailable(fallbackReason) }
-            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate)
+            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                  prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: nil, processingTime: Date().timeIntervalSince(started),
                           note: fallbackReason)
         }
@@ -342,20 +372,51 @@ enum AppleSpeech {
     }
 
     /// Transcribes with the newer model when it can, the older one otherwise,
-    /// and says which one did it.
-    static func transcribe(_ samples: [Float], sampleRate: Double) async throws -> (text: String, engine: Engine) {
-        if #available(iOS 26.0, *), await AppleAnalyzer.state() == .installed {
-            return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer)
+    /// and says which one did it. `prepared` is a readied
+    /// `AppleAnalyzer.Prepared`, when there is one.
+    static func transcribe(_ samples: [Float], sampleRate: Double,
+                           prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine) {
+        if #available(iOS 26.0, *) {
+            if let prepared = prepared as? AppleAnalyzer.Prepared {
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer)
+            }
+            if await AppleAnalyzer.state() == .installed {
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer)
+            }
         }
         return (try await recognize(samples, sampleRate: sampleRate), .apple)
     }
 
+    /// The older recognizer. Apple documents it as stopping after a minute of
+    /// audio, so a longer dictation goes through in pieces, cut at pauses.
     private static func recognize(_ samples: [Float], sampleRate: Double) async throws -> String {
         guard let recognizer = SFSpeechRecognizer(), recognizer.supportsOnDeviceRecognition,
-              SFSpeechRecognizer.authorizationStatus() == .authorized,
-              let buffer = AppleAnalyzer.buffer(samples, sampleRate: sampleRate)
+              SFSpeechRecognizer.authorizationStatus() == .authorized
         else { throw Transcriber.TranscriberError.noEngine }
 
+        var pieces: [String] = []
+        for range in AudioChunks.split(samples, sampleRate: sampleRate) {
+            guard let buffer = AppleAnalyzer.buffer(Array(samples[range]), sampleRate: sampleRate)
+            else { throw Transcriber.TranscriberError.noEngine }
+            do {
+                let text = try await recognize(buffer, with: recognizer)
+                if !text.isEmpty { pieces.append(text) }
+            } catch where isNoSpeech(error as NSError) && range.count < samples.count {
+                // A piece that's all pause (a long think mid-dictation).
+                // The rest still counts; a recording that's silent
+                // throughout still fails as before.
+                continue
+            }
+        }
+        return pieces.joined(separator: " ")
+    }
+
+    /// The recognizer's "No speech detected" error.
+    private static func isNoSpeech(_ error: NSError) -> Bool {
+        error.domain == "kAFAssistantErrorDomain" && error.code == 1110
+    }
+
+    private static func recognize(_ buffer: AVAudioPCMBuffer, with recognizer: SFSpeechRecognizer) async throws -> String {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = false
@@ -363,7 +424,7 @@ enum AppleSpeech {
         request.append(buffer)
         request.endAudio()
 
-        return try await withCheckedThrowingContinuation { continuation in
+        let text: String = try await withCheckedThrowingContinuation { continuation in
             var finished = false
             _ = recognizer.recognitionTask(with: request) { result, error in
                 guard !finished else { return }
@@ -376,6 +437,7 @@ enum AppleSpeech {
                 }
             }
         }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -439,16 +501,54 @@ enum AppleAnalyzer {
         SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [], attributeOptions: [])
     }
 
+    /// An analyzer with its model started, ready for one recording.
     @available(iOS 26.0, *)
-    static func transcribe(_ samples: [Float], sampleRate: Double) async throws -> String {
+    final class Prepared {
+        let transcriber: SpeechTranscriber
+        let analyzer: SpeechAnalyzer
+        let format: AVAudioFormat
+
+        init(transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer, format: AVAudioFormat) {
+            self.transcriber = transcriber
+            self.analyzer = analyzer
+            self.format = format
+        }
+    }
+
+    /// Starts the model now instead of when the first audio arrives
+    /// (`prepareToAnalyze`), the way Apple recommends for a quick first
+    /// result. `lingering` keeps the model in memory for a while after the
+    /// analyzer is done, so the next dictation's analyzer doesn't start it
+    /// again from scratch; iOS frees it when Yapper stops using it.
+    @available(iOS 26.0, *)
+    static func prepare() async throws -> Prepared {
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
             throw AnalyzerError.unavailable
         }
         let transcriber = makeTranscriber(locale)
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        let analyzer = SpeechAnalyzer(modules: [transcriber],
+                                      options: .init(priority: .userInitiated, modelRetention: .lingering))
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            throw AnalyzerError.audioFormat
+        }
+        try await analyzer.prepareToAnalyze(in: format)
+        return Prepared(transcriber: transcriber, analyzer: analyzer, format: format)
+    }
+
+    /// There is no length limit to plan for: SpeechAnalyzer is built for
+    /// long audio (Notes and Voice Memos transcribe whole recordings with it).
+    @available(iOS 26.0, *)
+    static func transcribe(_ samples: [Float], sampleRate: Double, prepared: Prepared? = nil) async throws -> String {
+        let session: Prepared
+        if let prepared {
+            session = prepared
+        } else {
+            session = try await prepare()
+        }
+        let transcriber = session.transcriber
+        let analyzer = session.analyzer
         guard let source = buffer(samples, sampleRate: sampleRate),
-              let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]),
-              let audio = convert(source, to: format)
+              let audio = convert(source, to: session.format)
         else { throw AnalyzerError.audioFormat }
 
         // Collect results as they finalize; the sequence ends when the
