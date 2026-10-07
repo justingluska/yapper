@@ -13,7 +13,7 @@ Talk, and Yapper types it into any app. Speech is transcribed on your iPhone, ne
 [![On-device](https://img.shields.io/badge/speech-100%25%20on--device-0B6BDE)](#privacy)
 [![Build](https://github.com/justingluska/yapper/actions/workflows/build.yml/badge.svg)](https://github.com/justingluska/yapper/actions/workflows/build.yml)
 
-Coming soon to the App Store · [Privacy](https://digitalmundo.org/yapper/privacy/) · Questions? [DM @gluska on X](https://x.com/gluska)
+Coming soon to the App Store · [Website](https://digitalmundo.org/yapper/) · [Privacy](https://digitalmundo.org/yapper/privacy/) · Questions? [DM @gluska on X](https://x.com/gluska)
 
 <img src="docs/images/hero.png" alt="Yapper on iPhone: the dictation keyboard listening, stats with a contribution grid, history, and the typing layout, in light and dark mode" width="900">
 
@@ -118,7 +118,7 @@ sequenceDiagram
     Note over A: Mic and model on,<br/>Live Activity shows it
     K->>G: "start" + one-time token
     G-->>A: Darwin notification
-    A->>A: Record, then transcribe on the Neural Engine
+    A->>A: Record, then transcribe on this iPhone
     A->>G: Cleaned-up transcript
     G-->>K: Darwin notification
     K->>K: Types the text into the app you're in
@@ -168,7 +168,7 @@ Full policy: [digitalmundo.org/yapper/privacy](https://digitalmundo.org/yapper/p
 **App Store:** coming soon. TestFlight isn't public yet; watch this repo for the release.
 
 **Build from source** (Mac with Xcode 26 or newer, [XcodeGen](https://github.com/yonaskolb/XcodeGen), an iPhone on
-iOS 18 or newer; speech needs a real device, since the simulator can't run the Neural Engine model):
+iOS 18 or newer; dictation needs a real device, since the simulator has no on-device speech model or Neural Engine):
 
 ```sh
 git clone https://github.com/justingluska/yapper.git
@@ -192,7 +192,7 @@ Access. The [support page](https://digitalmundo.org/yapper/support/) walks throu
 | `YapperKeyboard/` | The keyboard extension. Never links FluidAudio (extensions get about 50 MB of memory) |
 | `YapperWidgets/` | Live Activity (Dynamic Island, Lock Screen) and the Control Center control |
 | `Shared/` | Code shared across targets: the keyboard↔app bridge, settings, text cleanup, Yapper's style, App Intents |
-| `YapperTests/` | Unit tests for text cleanup |
+| `YapperTests/` | Unit tests: text cleanup, splitting long recordings at pauses, load-time estimates |
 | `YapperScreenshots/`, `KeyboardScreenshots/`, `KeyboardPreview/` | UI tests that render every screen and keyboard state in CI (never shipped) |
 | `project.yml` | XcodeGen spec for every target. The `.xcodeproj` is generated, not committed |
 
@@ -323,7 +323,7 @@ security problems privately as described in [SECURITY.md](SECURITY.md).
 
 Questions, bugs or ideas: **DM me on X, [@gluska](https://x.com/gluska)**. That's the fastest way to reach me.
 Setup steps and common questions are on the [support page](https://digitalmundo.org/yapper/support/), and email
-(team@digitalmundo.org) works too. Found a bug in the code? [Open an issue](https://github.com/justingluska/yapper/issues).
+(hi@digitalmundo.org) works too. Found a bug in the code? [Open an issue](https://github.com/justingluska/yapper/issues).
 
 ## License
 

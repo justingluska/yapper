@@ -5,7 +5,7 @@ other security or privacy problem, please tell us privately first.
 
 ## Reporting a vulnerability
 
-Email **team@digitalmundo.org** with:
+Email **hi@digitalmundo.org** with:
 
 - what you found and why it matters,
 - steps to reproduce (iPhone model, iOS version, Yapper version or commit),

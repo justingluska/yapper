@@ -57,4 +57,4 @@ Yapper collects no data from anyone, including children.
 ## Changes and contact
 
 If this policy changes, the new version will be posted here with a new date.
-Questions: team@digitalmundo.org, or DM @gluska on X
+Questions: hi@digitalmundo.org, or DM @gluska on X

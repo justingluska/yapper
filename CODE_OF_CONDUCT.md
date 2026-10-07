@@ -6,5 +6,5 @@ In short: be respectful and welcoming, assume good faith, and keep criticism abo
 Harassment, personal attacks and discriminatory language aren't tolerated in issues, pull requests or any other
 project space.
 
-To report unacceptable behavior, email **team@digitalmundo.org**. Reports are handled privately. Maintainers may
+To report unacceptable behavior, email **hi@digitalmundo.org**. Reports are handled privately. Maintainers may
 remove comments, close threads or ban participants who break these rules.
