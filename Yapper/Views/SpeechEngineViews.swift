@@ -44,6 +44,10 @@ struct SpeechEngineCard: View {
             }
             .buttonStyle(.plain)
 
+            if ModelChoice.current == .apple, controller.appleModel == .notInstalled {
+                AppleNewestModelPrompt()
+            }
+
             Button {
                 if controller.isSessionLive || controller.startSession() {
                     controller.beginRecording(source: .app)
@@ -105,6 +109,9 @@ struct SpeechEngineCard: View {
             }
             return "Listening for the keyboard until you turn it off. Tap the Yapper keyboard in any app and talk; you won't come back here."
         }
+        if !ModelChoice.current.isParakeet {
+            return "Turned off. Nothing is listening. iOS only lets the Yapper app use the microphone, not the keyboard, so it has to be on: switch it on here, or just tap the Yapper keyboard and the first tap opens Yapper once to do it."
+        }
         return "Turned off. Nothing is listening and no model is in memory. Turn it on before you start writing, or just tap the Yapper keyboard: the first tap opens Yapper once to turn it on."
     }
 }
@@ -141,16 +148,27 @@ struct SessionToggle: View {
 
 /// Plain-words explanation of the session, and why it exists.
 struct HowItWorks: View {
+    private var parakeet: Bool { ModelChoice.current.isParakeet }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             point("Everything stays on this iPhone.",
-                  "Your voice is turned into text by the model on the Neural Engine. Nothing is uploaded.")
+                  parakeet
+                  ? "Your voice is turned into text by Parakeet on the Neural Engine. Nothing is uploaded."
+                  : "Your voice is turned into text by Apple's speech model, built into iOS and running on this iPhone. Nothing is uploaded, to Apple or anyone.")
             point("Why there's an on switch.",
                   "iOS never lets a keyboard use the microphone, and only lets an app turn the microphone on while it's on screen. So the Yapper app does the listening, and it has to be switched on from the foreground once. After that it keeps running in the background and the keyboard dictates instantly. Every dictation keyboard on iPhone works this way.")
-            point("Why is it slow to start?",
-                  "Turning the engine on loads the speech model into your iPhone's Neural Engine. The very first time, iOS also optimizes the model for your exact chip, which can take a few minutes. It keeps the result, so after that the engine starts in a few seconds. Turning the engine off takes the model back out of memory, which is why it isn't instant every time.")
-            point("Why cloud apps feel quicker to start.",
-                  "They send your audio to a server, so there's no model on the phone to get ready. Yapper does the work on your iPhone instead: once the model is loaded it's just as fast, it works offline, and your voice never leaves the phone. If you want instant starts, choose Apple on-device in Settings (nothing to load, less accurate), or turn on Don't wait for Parakeet to use it only while Parakeet loads.")
+            if parakeet {
+                point("Why is it slow to start?",
+                      "Turning the engine on loads Parakeet into your iPhone's Neural Engine. The very first time, iOS also optimizes the model for your exact chip, which can take a few minutes. It keeps the result, so after that the engine starts in a few seconds. Turning the engine off takes the model back out of memory, which is why it isn't instant every time.")
+                point("Want instant starts?",
+                      "Switch to Apple on-device in Speech models, the one Yapper recommends: it's built into iOS, so there's nothing to load and the engine is ready the moment it's on. Or turn on Don't wait for Parakeet to use it only while Parakeet loads.")
+            } else {
+                point("Why it starts instantly.",
+                      "Apple's speech model is part of iOS, so there's nothing to load: switching the engine on just turns on the microphone, and Yapper readies the model while you get to the keyboard.")
+            }
+            point("Long dictations and calls.",
+                  "There's no length limit. If a call comes in while you're talking, Yapper stops and keeps what you said before it: it's in History and on the clipboard.")
             point("The orange dot.",
                   "iOS shows it the whole time the engine is on, and apps can't change its color. Yapper's own sign is in the Dynamic Island: blue while the engine is ready, red while it's listening, amber while it types. Yapper only keeps audio while you're dictating, and the engine switches itself off after the time you choose in Settings, or when you turn it off here, in the keyboard, or from the Dynamic Island.")
         }
@@ -194,6 +212,32 @@ struct ModelSummaryRow: View {
         .background(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).fill(Theme.fillSubtle))
         .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).strokeBorder(Theme.border))
         .contentShape(Rectangle())
+    }
+}
+
+/// On Home, when Apple on-device is in use but iOS 26 doesn't have Apple's
+/// newest model for this language yet: the one tap that makes it better.
+struct AppleNewestModelPrompt: View {
+    @EnvironmentObject private var controller: DictationController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Yapper is using Apple's older speech model. The newest one, the model behind Notes and Voice Memos transcription, is more accurate and free. iOS downloads it from Apple and shares it with other apps.")
+                .font(Theme.font(13))
+                .foregroundStyle(Theme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            if let progress = controller.appleModelProgress {
+                ProgressView(value: progress)
+                    .tint(Theme.textEmphasis)
+            } else {
+                Button {
+                    Task { await controller.installAppleModel() }
+                } label: {
+                    Label("Get Apple's newest model", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+        }
     }
 }
 
@@ -278,7 +322,7 @@ struct ModelsSection: View {
                 .padding(.top, 8)
                 .padding(.bottom, 4)
         } footer: {
-            Text("Tap a model to use it. Parakeet models are downloaded once from Hugging Face, pinned to an exact version, and after that Yapper works offline. Apple on-device is built into iOS: it starts instantly with nothing to load, and is less accurate.")
+            Text("Tap a model to use it. Apple on-device is the one we recommend: it's built into iOS, starts instantly and needs nothing extra. Parakeet is optional: downloaded once from Hugging Face, pinned to an exact version, and offline after that. It can be more accurate, and takes a few seconds to load each time the engine turns on.")
                 .padding(.top, 4)
         }
 

@@ -68,9 +68,11 @@ cap how much you can say before you pay. Yapper does none of that.
 - Personal dictionary: "when I say X, write Y" for names, brands and jargon
 
 **Speech engines, all on the device**
-- **Apple on-device**, the default: built in, nothing to download or load, starts instantly, less accurate. On iOS 26
-  and later it uses Apple's newest on-device model (SpeechAnalyzer, the one behind Notes and Voice Memos transcription)
-- **Parakeet Ultra** (most accurate, 632 MB download) or **Parakeet v3** (480 MB), on the Neural Engine
+- **Apple on-device**, the default and the one we recommend: built in, nothing to download or load, starts instantly.
+  On iOS 26 and later it uses Apple's newest on-device model (SpeechAnalyzer, the one behind Notes and Voice Memos
+  transcription), readied when the engine turns on so the first words don't wait for it
+- **Parakeet Ultra** (632 MB download, can be more accurate) or **Parakeet v3** (480 MB), optional, on the Neural Engine
+- No length limit, and a phone call mid-dictation keeps what you said before it (in History and on the clipboard)
 - **Don't wait for Parakeet**: while Parakeet loads, Apple on-device takes your dictations straight away
 - Loading shows each step and, after the first time, a progress bar and the time left, measured from the last load
 - Every dictation records which engine transcribed it, and why
@@ -238,7 +240,8 @@ Full Access, the keyboard still types; it just can't dictate.
 <details>
 <summary><b>Why is the first load slow?</b></summary>
 
-Apple on-device, the default, has nothing to load. Parakeet does: the first time a Parakeet model runs, iOS compiles
+Apple on-device, the default, has nothing to load: turning the engine on just turns on the microphone. Parakeet, if you
+choose it, does: the first time a Parakeet model runs, iOS compiles
 it for your iPhone's Neural Engine, which can take a few minutes, once. After that it loads in seconds, and Yapper shows
 the time left. A dictation made while it loads waits for it, with a button to use Apple's model instead; turn on
 "Don't wait for Parakeet" to always use Apple's model until Parakeet is ready.
@@ -269,20 +272,21 @@ them. Apple on-device needs no download.
 
 Doing dictation on the phone instead of a server has trade-offs. None of them are hidden:
 
-- **Starting takes a moment.** Turning the speech engine on loads the model into the Neural Engine: a few seconds
-  usually, and a few minutes the very first time while iOS optimizes it for your chip. Apple on-device starts instantly,
-  and Don't wait for Parakeet uses it until Parakeet is ready.
-- **It needs space.** Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB).
-- **Best on recent iPhones.** Parakeet runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory
-  or more. Older iPhones work, just slower; Apple on-device is the lighter choice there, and the app says so on
-  iPhones with less memory.
 - **Yapper opens once per session.** iOS never lets a keyboard use the microphone, so the first dictation opens the
-  app to start listening. After that the engine stays on for 5, 15 or 60 minutes.
+  app to start listening. After that the engine stays on for 5, 15 or 60 minutes. This is about the microphone, not
+  the model: it's the same with Apple on-device.
 - **The orange dot and battery.** While the engine is on, iOS shows the mic indicator and the mic stays ready, which
   uses a little more battery. Turn it off from the app, the keyboard or the Dynamic Island.
-- **Languages.** Parakeet covers 25 European languages, English included. Apple on-device uses your iPhone's language.
-- **Where the keyboard can't go.** iOS uses its own keyboard in password fields, and some apps block other keyboards.
 - **It can mishear.** Names, numbers and jargon can come out wrong; the personal dictionary fixes the ones you use.
+- **Languages.** Apple on-device uses your iPhone's language. Parakeet covers 25 European languages, English included.
+- **Where the keyboard can't go.** iOS uses its own keyboard in password fields, and some apps block other keyboards.
+- **Parakeet takes a moment to start.** If you choose Parakeet, turning the engine on loads it into the Neural Engine:
+  a few seconds usually, and a few minutes the very first time while iOS optimizes it for your chip. Apple on-device
+  starts instantly, and Don't wait for Parakeet uses it until Parakeet is ready.
+- **Parakeet needs space.** Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB).
+- **Parakeet likes recent iPhones.** It runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory
+  or more. Older iPhones work, just slower; Apple on-device is the lighter choice there, and the app says so on
+  iPhones with less memory.
 
 ## Roadmap
 

@@ -7,7 +7,7 @@ import Speech
 /// Speech-to-text engines Yapper can use. Everything runs on the device.
 enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
     /// Apple's on-device speech recognition: built in, starts instantly. The
-    /// default. SpeechAnalyzer on iOS 26+, the older recognizer before that.
+    /// default, and the one Yapper recommends. SpeechAnalyzer on iOS 26+, the older recognizer before that.
     case apple
     /// Parakeet Ultra: Moondream's post-training of NVIDIA Parakeet TDT 0.6B v3, the most accurate, 632 MB.
     case ultra
@@ -37,9 +37,9 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
 
     var detail: String {
         switch self {
-        case .ultra: return "Most accurate. 25 languages."
-        case .v3: return "The previous version. 25 languages, smaller download."
-        case .apple: return "The default. Built into iOS: starts instantly, nothing to download or load. Less accurate than Parakeet."
+        case .ultra: return "Optional download. Can be more accurate, but takes a few seconds to load each time Yapper turns on. 25 languages."
+        case .v3: return "The previous Parakeet. 25 languages, smaller download."
+        case .apple: return "Recommended. Built into iOS: nothing to download, starts instantly, works offline."
         }
     }
 

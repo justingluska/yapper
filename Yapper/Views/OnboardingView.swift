@@ -184,10 +184,10 @@ struct OnboardingView: View {
     private var model: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageTitle(title: "Speech model", subtitle: "You can change it any time in Settings.")
-            Text("Yapper uses Apple's on-device speech model by default. It's built into iOS, so there's nothing to download and it starts instantly. Like everything in Yapper, it runs on this iPhone and nothing is sent anywhere.")
+            Text("Yapper uses Apple's on-device speech model, and it's the one we recommend. It's built into iOS, so there's nothing to download and it starts instantly. Like everything in Yapper, it runs on this iPhone and nothing is sent anywhere.")
                 .font(Theme.font(15))
                 .foregroundStyle(Theme.text)
-            Text("Want it more accurate? Yapper also supports Parakeet, a speech model from NVIDIA that runs on your iPhone's Neural Engine. It's a one-time \(ModelChoice.ultra.downloadMB) MB download (Wi-Fi is a good idea) and takes a few seconds to start each time you turn Yapper on. It keeps downloading while you finish setting up, and Apple's model fills in until it's ready.")
+            Text("Optional: Yapper also supports Parakeet, a speech model from NVIDIA that runs on your iPhone's Neural Engine and can be more accurate. It's a one-time \(ModelChoice.ultra.downloadMB) MB download (Wi-Fi is a good idea) and takes a few seconds to start each time you turn Yapper on. It keeps downloading while you finish setting up, and Apple's model fills in until it's ready.")
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
             Card {

@@ -8,22 +8,22 @@ struct GoodToKnowList: View {
     var compact = false
 
     private static let points: [(String, String)] = [
-        ("Starting takes a moment",
-         "Turning the speech engine on loads the model into your iPhone's Neural Engine: a few seconds usually, and a few minutes the very first time, while iOS optimizes it for your chip. Apple on-device starts instantly."),
-        ("It needs space",
-         "Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB). Apple on-device needs nothing extra."),
-        ("Best on recent iPhones",
-         "Parakeet runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory or more. Older iPhones work, just slower; Apple on-device is the lighter choice there."),
         ("Yapper opens once per session",
          "iOS never lets a keyboard use the microphone, so the first dictation opens the Yapper app to start listening. Swipe back, and it stays on for the time you pick (5, 15 or 60 minutes)."),
         ("The orange dot and battery",
          "While the engine is on, iOS shows its orange mic dot and the mic stays ready, which uses a little more battery. Turn it off any time from the app, the keyboard or the Dynamic Island."),
-        ("Languages",
-         "Parakeet understands 25 European languages, English included. Apple on-device uses your iPhone's language."),
-        ("Where the keyboard can't go",
-         "iOS switches to its own keyboard in password fields, and some apps don't allow other keyboards."),
         ("It can mishear",
          "Names, numbers and jargon can come out wrong. Check before you send, and teach it your words in Dictionary."),
+        ("Languages",
+         "Apple on-device uses your iPhone's language. Parakeet understands 25 European languages, English included."),
+        ("Where the keyboard can't go",
+         "iOS switches to its own keyboard in password fields, and some apps don't allow other keyboards."),
+        ("Parakeet takes a moment to start",
+         "If you choose Parakeet, turning the engine on loads it into your iPhone's Neural Engine: a few seconds usually, and a few minutes the very first time, while iOS optimizes it for your chip. Apple on-device, the default, starts instantly."),
+        ("Parakeet needs space",
+         "Parakeet Ultra is a one-time 632 MB download (Parakeet v3 is 480 MB). Apple on-device needs nothing extra."),
+        ("Parakeet likes recent iPhones",
+         "Parakeet runs best on roughly iPhone 12 and newer, especially models with 6 GB of memory or more. Older iPhones work, just slower; Apple on-device is the lighter choice there."),
     ]
 
     var body: some View {
