@@ -79,7 +79,9 @@ cap how much you can say before you pay. Yapper does none of that.
 
 **History and stats**
 - Search and copy every dictation, including the ones that failed, so nothing you say is lost
-- Recordings kept for 1 day by default (Don't keep up to Forever), to play back or transcribe again
+- Recordings kept for 30 days by default (Don't keep, 1 hour, up to Forever), to play back or transcribe again; the text
+  stays when a recording goes, and Settings says how many recordings and how much space a shorter setting deletes
+  before it does
 - Totals, streak, words per minute and a contribution grid
 
 **Start it your way**
@@ -135,7 +137,7 @@ Yapper collects nothing. There is no account, no analytics SDK, no crash reporte
 privacy label is "Data Not Collected".
 
 - **Audio** is recorded only while you dictate and transcribed on your iPhone. Recordings are kept on the device for
-  1 day by default, excluded from iCloud backups, and deleted on your schedule.
+  30 days by default, excluded from iCloud backups, and deleted on your schedule.
 - **Text** stays in History on your iPhone for as long as you choose.
 - **The only network request** is the speech-model download, which happens when you tap Download. (On iOS 26, "Get
   Apple's newest model" asks iOS to fetch Apple's own speech model from Apple; Yapper sends nothing.) Files come from
