@@ -8,7 +8,11 @@ struct SettingsView: View {
     @State private var haptics = Settings.haptics
     @State private var historyDays = Settings.historyDays
     @State private var copyEveryDictation = Settings.copyEveryDictation
-    @State private var recordingDays = Settings.recordingDays
+    @State private var recordingHours = Settings.recordingHours
+    @State private var recordingBytes: Int64 = 0
+    /// A retention change that would delete something, waiting for the
+    /// user to confirm it.
+    @State private var pendingCut: PendingCut?
 
     var body: some View {
         Form {
@@ -68,35 +72,25 @@ struct SettingsView: View {
             }
 
             Section {
-                Picker("Keep text", selection: $historyDays) {
-                    Text("Last dictation only").tag(0)
-                    Text("1 day").tag(1)
-                    Text("7 days").tag(7)
-                    Text("30 days").tag(30)
-                    Text("Forever").tag(-1)
+                Picker("Keep text", selection: Binding(get: { historyDays }, set: requestHistoryDays)) {
+                    ForEach(Self.historyChoices, id: \.self) { days in
+                        Text(historyLabel(days)).tag(days)
+                    }
                 }
-                .onChange(of: historyDays) { _, value in
-                    Settings.historyDays = value
-                    HistoryStore.save(HistoryStore.prune(HistoryStore.load()))
-                    RecordingStore.prune()
-                    controller.historyChanged()
-                }
-                Picker("Keep recordings", selection: $recordingDays) {
-                    Text("Don't keep").tag(0)
-                    Text("1 day").tag(1)
-                    Text("7 days").tag(7)
-                    Text("30 days").tag(30)
-                    Text("Forever").tag(-1)
-                }
-                .onChange(of: recordingDays) { _, value in
-                    Settings.recordingDays = value
-                    RecordingStore.prune()
-                    controller.historyChanged()
+                Picker("Keep recordings", selection: Binding(get: { recordingHours }, set: requestRecordingHours)) {
+                    ForEach(Retention.recordingChoices, id: \.self) { hours in
+                        Text(Retention.label(hours: hours)).tag(hours)
+                    }
                 }
             } header: {
                 SectionLabel(text: "History")
             } footer: {
-                Text("Text is every dictation's words, including the ones that failed. Recordings are the audio, kept so you can play a dictation back or transcribe it again. Both stay on this iPhone.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Text is every dictation's words, including the ones that failed. Recordings are the audio, kept so you can play a dictation back or transcribe it again. When a recording is deleted, its text stays. Both stay on this iPhone.")
+                    if recordingBytes > 0 {
+                        Text("Recordings use \(recordingBytes.formatted(.byteCount(style: .file))) right now.")
+                    }
+                }
             }
 
             Section {
@@ -147,7 +141,23 @@ struct SettingsView: View {
         .background(Theme.background)
         .listSectionSpacing(24)
         .navigationTitle("Settings")
-        .onAppear { controller.refreshDownloadedModels() }
+        .onAppear {
+            controller.refreshDownloadedModels()
+            recordingBytes = RecordingStore.totalSize()
+        }
+        .onChange(of: controller.historyVersion) { _, _ in recordingBytes = RecordingStore.totalSize() }
+        .alert(pendingCut?.title ?? "", isPresented: Binding(get: { pendingCut != nil }, set: { if !$0 { pendingCut = nil } }), presenting: pendingCut) { cut in
+            Button("Delete", role: .destructive) {
+                switch cut.setting {
+                case .history(let days): applyHistoryDays(days)
+                case .recordings(let hours): applyRecordingHours(hours)
+                }
+                pendingCut = nil
+            }
+            Button("Cancel", role: .cancel) { pendingCut = nil }
+        } message: { cut in
+            Text(cut.message)
+        }
         .alert("Action Button, Control Center and Back Tap", isPresented: $showActionButtonHelp) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -156,6 +166,70 @@ struct SettingsView: View {
     }
 
     @State private var showActionButtonHelp = false
+
+    private static let historyChoices = [0, 1, 7, 30, -1]
+
+    private func historyLabel(_ days: Int) -> String {
+        switch days {
+        case ..<0: return "Forever"
+        case 0: return "Last dictation only"
+        case 1: return "1 day"
+        default: return "\(days) days"
+        }
+    }
+
+    // MARK: Retention changes
+
+    /// Applies a shorter Keep text at once when it deletes nothing, and asks
+    /// first when it would.
+    private func requestHistoryDays(_ days: Int) {
+        guard days != historyDays else { return }
+        let records = HistoryStore.load()
+        let kept = HistoryStore.prune(records, days: days)
+        let doomed = records.filter { record in !kept.contains { $0.id == record.id } }
+        guard !doomed.isEmpty else { return applyHistoryDays(days) }
+        let bytes = doomed.compactMap(\.audioFile).reduce(0) { $0 + RecordingStore.size(of: $1) }
+        let count = doomed.count == 1 ? "1 dictation" : "\(doomed.count) dictations"
+        let freed = bytes > 0 ? " and frees \(bytes.formatted(.byteCount(style: .file)))" : ""
+        pendingCut = PendingCut(
+            setting: .history(days),
+            title: "Delete \(count)?",
+            message: "Changing Keep text from \(historyLabel(historyDays)) to \(historyLabel(days)) deletes \(count) from History, with their recordings\(freed). Your stats stay. This can't be undone."
+        )
+    }
+
+    private func applyHistoryDays(_ days: Int) {
+        historyDays = days
+        Settings.historyDays = days
+        HistoryStore.save(HistoryStore.prune(HistoryStore.load()))
+        RecordingStore.prune()
+        controller.historyChanged()
+    }
+
+    /// Same for Keep recordings: say how many recordings go and how much
+    /// space comes back before deleting any.
+    private func requestRecordingHours(_ hours: Int) {
+        guard hours != recordingHours else { return }
+        let loss = RecordingStore.wouldDelete(keeping: hours)
+        guard loss.count > 0 else { return applyRecordingHours(hours) }
+        let count = loss.count == 1 ? "1 recording" : "\(loss.count) recordings"
+        let freed = loss.bytes.formatted(.byteCount(style: .file))
+        let change = hours == 0
+            ? "Not keeping recordings deletes the \(count) on this iPhone and frees \(freed)."
+            : "Keeping recordings \(Retention.phrase(hours: hours)) instead of \(recordingHours < 0 ? "forever" : Retention.label(hours: recordingHours)) deletes the \(count) older than that and frees \(freed)."
+        pendingCut = PendingCut(
+            setting: .recordings(hours),
+            title: "Delete \(count)?",
+            message: "\(change) Their text stays in History. This can't be undone."
+        )
+    }
+
+    private func applyRecordingHours(_ hours: Int) {
+        recordingHours = hours
+        Settings.recordingHours = hours
+        RecordingStore.prune()
+        controller.historyChanged()
+    }
 
     private func label(_ minutes: Int) -> String {
         switch minutes {
@@ -172,13 +246,25 @@ struct SettingsView: View {
     }
 }
 
+/// A Keep text or Keep recordings change waiting on the user's OK.
+private struct PendingCut {
+    enum Setting {
+        case history(Int)
+        case recordings(Int)
+    }
+
+    let setting: Setting
+    let title: String
+    let message: String
+}
+
 struct PrivacyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PageTitle(title: "Privacy", subtitle: "Short version: nothing leaves your iPhone.")
                 block("What Yapper collects", "Nothing. There is no account, no analytics, no advertising, no crash reporting and no server.")
-                block("Your voice", "Audio is recorded only while you dictate and transcribed on this iPhone. Each recording is kept on this iPhone for 1 day by default (Settings › Keep recordings, from Don't keep to Forever) so you can play it back or transcribe it again, then deleted. Recordings are never sent anywhere and are left out of iCloud backups.")
+                block("Your voice", "Audio is recorded only while you dictate and transcribed on this iPhone. Each recording is kept on this iPhone for 30 days by default (Settings › Keep recordings, from Don't keep to Forever) so you can play it back or transcribe it again, then deleted. Its text stays in History. Recordings are never sent anywhere and are left out of iCloud backups.")
                 block("Your text", "Transcripts, including failed attempts, are kept in History on this device for as long as you choose in Settings, and you can delete them at any time. If your iPhone backs up to iCloud, iOS includes app data like History in that backup, as for any app.")
                 block("The internet", "Yapper downloads the speech model once, from Hugging Face, when you ask it to. After that it makes no network requests. The keyboard has no network code at all.")
                 block("Full Access", "iOS requires Full Access for the keyboard to share text with the Yapper app through their private App Group folder. Yapper uses it for that and nothing else.")

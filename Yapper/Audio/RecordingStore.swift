@@ -2,8 +2,9 @@ import AVFoundation
 import Foundation
 
 /// The audio of each dictation, kept on this iPhone for Settings › Keep
-/// recordings (1 day by default) so it can be played back or transcribed
-/// again, including dictations that failed. AAC in the app's own container,
+/// recordings (30 days by default) so it can be played back or transcribed
+/// again, including dictations that failed. The text in History stays after
+/// its recording is deleted. AAC in the app's own container,
 /// never shared with the keyboard and excluded from iCloud backup.
 enum RecordingStore {
     static var directory: URL {
@@ -23,7 +24,7 @@ enum RecordingStore {
     /// Saves mono samples captured at `sampleRate`. Returns the file name,
     /// or nil when recordings are off or the write failed.
     static func save(_ samples: [Float], sampleRate: Double, id: UUID) -> String? {
-        guard Settings.recordingDays != 0, !samples.isEmpty,
+        guard Settings.recordingHours != 0, !samples.isEmpty,
               let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
               let channel = buffer.floatChannelData?[0]
@@ -66,16 +67,38 @@ enum RecordingStore {
         return (Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))), format.sampleRate)
     }
 
+    /// Bytes on disk, 0 when the file is gone.
+    static func size(of file: String) -> Int64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url(for: file).path)
+        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    /// The space all kept recordings take.
+    static func totalSize() -> Int64 {
+        HistoryStore.load().compactMap(\.audioFile).reduce(0) { $0 + size(of: $1) }
+    }
+
+    /// What keeping recordings for `hours` would delete right now, so
+    /// Settings can say so before it happens.
+    static func wouldDelete(keeping hours: Int, now: Date = Date()) -> (count: Int, bytes: Int64) {
+        let doomed = HistoryStore.load().filter { record in
+            guard let file = record.audioFile, exists(file) else { return false }
+            return Retention.isExpired(record.date, hours: hours, now: now)
+        }
+        return (doomed.count, doomed.compactMap(\.audioFile).reduce(0) { $0 + size(of: $1) })
+    }
+
     /// Deletes recordings older than the setting, and any file History no
     /// longer points at. Ages come from the History record, not the file.
-    static func prune(now: Date = Date()) {
-        let days = Settings.recordingDays
+    /// Returns whether any History entry lost its recording.
+    @discardableResult
+    static func prune(now: Date = Date()) -> Bool {
+        let hours = Settings.recordingHours
         var records = HistoryStore.load()
         var changed = false
         for index in records.indices {
             guard let file = records[index].audioFile else { continue }
-            let expired = days == 0 || (days > 0 && records[index].date < now.addingTimeInterval(-Double(days) * 86_400))
-            if expired || !exists(file) {
+            if Retention.isExpired(records[index].date, hours: hours, now: now) || !exists(file) {
                 try? FileManager.default.removeItem(at: url(for: file))
                 records[index].audioFile = nil
                 changed = true
@@ -88,6 +111,7 @@ enum RecordingStore {
         for file in files where !kept.contains(file) {
             try? FileManager.default.removeItem(at: url(for: file))
         }
+        return changed
     }
 
     static func deleteAll() {

@@ -61,6 +61,8 @@ struct YapperApp: App {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 controller.handleStartRequest()
+                // Keep recordings can be as short as an hour.
+                if RecordingStore.prune() { controller.historyChanged() }
                 controller.refreshModelState()
                 controller.resumeDownloadIfWanted()
                 if controller.isSessionLive {

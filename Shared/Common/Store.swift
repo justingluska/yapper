@@ -76,6 +76,7 @@ enum Settings {
         static let parakeetOnly = "settings.parakeetOnly"
         static let copyEveryDictation = "settings.copyEveryDictation"
         static let recordingDays = "settings.recordingDays"
+        static let recordingHours = "settings.recordingHours"
         static let wantsModelDownload = "settings.wantsModelDownload"
         static let loadedModels = "settings.loadedModels"
         static let appleWhileLoading = "settings.appleWhileLoading"
@@ -133,12 +134,17 @@ enum Settings {
         set { defaults.set(newValue, forKey: Key.copyEveryDictation) }
     }
 
-    /// Days to keep the audio of each dictation, for playing back and
+    /// Hours to keep the audio of each dictation, for playing back and
     /// transcribing again; 0 keeps none, -1 keeps everything. Separate from
-    /// the text history.
-    static var recordingDays: Int {
-        get { defaults.object(forKey: Key.recordingDays) as? Int ?? 1 }
-        set { defaults.set(newValue, forKey: Key.recordingDays) }
+    /// the text history, which outlives it.
+    static var recordingHours: Int {
+        get {
+            if let hours = defaults.object(forKey: Key.recordingHours) as? Int { return hours }
+            // Up to 1.0 the setting was in days (1, 7 or 30, 0 or -1).
+            if let days = defaults.object(forKey: Key.recordingDays) as? Int { return days > 0 ? days * 24 : days }
+            return Retention.defaultRecordingHours
+        }
+        set { defaults.set(newValue, forKey: Key.recordingHours) }
     }
 
     /// The user asked for the model download and it hasn't finished. Yapper
@@ -236,8 +242,7 @@ enum HistoryStore {
         save(records)
     }
 
-    static func prune(_ records: [DictationRecord], now: Date = Date()) -> [DictationRecord] {
-        let days = Settings.historyDays
+    static func prune(_ records: [DictationRecord], days: Int = Settings.historyDays, now: Date = Date()) -> [DictationRecord] {
         if days < 0 { return records }
         if days == 0 { return Array(records.prefix(1)) } // keep the last one so a failed insert is recoverable
         let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
