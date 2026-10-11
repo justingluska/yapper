@@ -24,28 +24,12 @@ enum RecordingStore {
     /// Saves mono samples captured at `sampleRate`. Returns the file name,
     /// or nil when recordings are off or the write failed.
     static func save(_ samples: [Float], sampleRate: Double, id: UUID) -> String? {
-        guard Settings.recordingHours != 0, !samples.isEmpty,
-              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
-              let channel = buffer.floatChannelData?[0]
-        else { return nil }
-        samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
-        buffer.frameLength = AVAudioFrameCount(samples.count)
-
+        guard Settings.recordingHours != 0, !samples.isEmpty else { return nil }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             excludeFromBackup()
-
             let file = "\(id.uuidString).m4a"
-            let settings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: sampleRate,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderBitRateKey: 64_000,
-            ]
-            let output = try AVAudioFile(forWriting: url(for: file), settings: settings,
-                                         commonFormat: .pcmFormatFloat32, interleaved: false)
-            try output.write(from: buffer)
+            try RecordingEncoder.write(samples, sampleRate: sampleRate, to: url(for: file))
             return file
         } catch {
             return nil

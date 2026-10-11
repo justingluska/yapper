@@ -186,6 +186,7 @@ targets:
       - path: Shared/Common/Retention.swift
       - path: Shared/Common/DictationRecord.swift
       - path: Yapper/Audio/AudioChunks.swift
+      - path: Yapper/Audio/RecordingEncoder.swift
       - path: Yapper/History/HistoryExport.swift
     settings:
       base:
