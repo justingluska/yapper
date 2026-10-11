@@ -43,14 +43,15 @@ struct YapperApp: App {
                 (9, "The quarterly numbers look good, but let's double-check the churn figure before we send it.", false),
                 (20, "Book the dentist for the first week of next month, mornings only.", false),
             ]
-            let silence = [Float](repeating: 0, count: 32_000)
+            // Two seconds of a quiet tone at the iPhone microphone's usual rate.
+            let tone = (0..<96_000).map { Float(sin(Double($0) * 2 * .pi * 220 / 48_000) * 0.05) }
             for item in older {
                 let id = UUID()
                 records.append(DictationRecord(
                     id: id, date: Date().addingTimeInterval(-item.days * 86_400), text: item.text, raw: item.text,
                     duration: Double(item.text.count) / 14, engine: Engine.appleAnalyzer.rawValue,
                     model: "Apple on-device", processingTime: 0.34,
-                    audioFile: item.recording ? RecordingStore.save(silence, sampleRate: 16_000, id: id) : nil))
+                    audioFile: item.recording ? RecordingStore.save(tone, sampleRate: 48_000, id: id) : nil))
             }
         }
         HistoryStore.save(records)
