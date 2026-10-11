@@ -79,6 +79,12 @@ cap how much you can say before you pay. Yapper does none of that.
 
 **History and stats**
 - Search and copy every dictation, including the ones that failed, so nothing you say is lost
+- Select several to share, copy as one text or delete; swipe a row to copy, share or delete it
+- Export to plain text, Markdown, JSON or CSV, with the recordings if you like, through the share sheet (AirDrop,
+  Save to Files, Messages, Mail). Export from Settings for everything, or today, the last 7 or 30 days
+- Import a JSON export to move History, recordings and stats to a new iPhone: there's no account or cloud, and
+  nothing is added twice
+- Delete all recordings (the text stays) or all history from Settings, each after two confirmations; stats stay
 - Recordings kept for 30 days by default (Don't keep, 1 hour, up to Forever), to play back or transcribe again; the text
   stays when a recording goes, and Settings says how many recordings and how much space a shorter setting deletes
   before it does
@@ -194,7 +200,7 @@ Access. The [support page](https://digitalmundo.org/yapper/support/) walks throu
 | `YapperKeyboard/` | The keyboard extension. Never links FluidAudio (extensions get about 50 MB of memory) |
 | `YapperWidgets/` | Live Activity (Dynamic Island, Lock Screen) and the Control Center control |
 | `Shared/` | Code shared across targets: the keyboard↔app bridge, settings, text cleanup, Yapper's style, App Intents |
-| `YapperTests/` | Unit tests: text cleanup, splitting long recordings at pauses, load-time estimates |
+| `YapperTests/` | Unit tests: text cleanup, splitting long recordings at pauses, load-time estimates, export formats and import |
 | `YapperScreenshots/`, `KeyboardScreenshots/`, `KeyboardPreview/` | UI tests that render every screen and keyboard state in CI (never shipped) |
 | `project.yml` | XcodeGen spec for every target. The `.xcodeproj` is generated, not committed |
 
@@ -261,6 +267,15 @@ English, and there's no language to pick. The typing layout is English (QWERTY).
 
 Almost. iOS switches to its own keyboard in password fields, and some apps don't allow third-party keyboards. For
 those, start a dictation from Control Center, the Action Button or Siri: Yapper copies the text so you can paste it.
+</details>
+
+<details>
+<summary><b>How do I move my history to a new iPhone?</b></summary>
+
+There's no account or cloud copy, so you move it yourself: on the old iPhone, Settings › History › Export history,
+pick JSON and Include recordings, and AirDrop it (or save it to Files). On the new one, Settings › History › Import
+history and pick the JSON file, plus the recordings if you want them. Your stats come along too, and importing the
+same file twice adds nothing.
 </details>
 
 <details>

@@ -20,6 +20,9 @@ Yapper is free, private voice dictation for iPhone. Speech is transcribed on you
   seconds, and "Don't wait for Parakeet" uses Apple's model in the meantime.
 - **Why the orange dot?** iOS shows it whenever an app has the microphone on. Turn the engine off in the app, the
   keyboard or the Dynamic Island to make it go away.
+- **How do I move to a new iPhone?** Settings › History › Export history, choose JSON and Include recordings, and
+  AirDrop it or save it to Files. On the new iPhone, Settings › History › Import history. There's no account, so
+  this is how History moves.
 - **The keyboard only types, it won't dictate.** Turn on Allow Full Access for Yapper in Settings › General ›
   Keyboard › Keyboards › Yapper.
 

@@ -2,7 +2,7 @@
 
 Published at https://digitalmundo.org/yapper/privacy/ (Digital Mundo LLC). Keep the two in step.
 
-_Last updated: 25 September 2026_
+_Last updated: 11 October 2026_
 
 Yapper is a voice dictation app for iPhone. It is built so that nothing you say or write leaves your iPhone.
 
@@ -24,7 +24,9 @@ your audio, your text or anything about how you use the app.
   not shared with your other devices.
 - **Stats.** Daily word and dictation counts are stored on your iPhone to show your stats.
 
-You can delete any dictation, or all of History, in the app. Deleting the app deletes everything.
+You can delete any dictation, a selection, every recording, or all of History in the app. You can also export
+History to a file and share it however you choose, for example with AirDrop or Save to Files; Yapper itself sends
+nothing, and the export is made on your iPhone. Deleting the app deletes everything.
 
 ## The keyboard and Full Access
 
