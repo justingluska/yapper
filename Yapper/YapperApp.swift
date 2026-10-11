@@ -52,6 +52,8 @@ struct YapperApp: App {
                     controller.refreshModelState()
                     controller.resumeDownloadIfWanted()
                     RecordingStore.prune()
+                    // Exports left behind if Yapper closed mid-share.
+                    HistoryTransfer.cleanUpAll()
                 }
         }
         .onChange(of: scenePhase) { _, phase in

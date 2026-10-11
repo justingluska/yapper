@@ -422,6 +422,12 @@ final class DictationController: ObservableObject {
         historyVersion += 1
     }
 
+    /// Every recording goes; History keeps all the text.
+    func deleteAllRecordings() {
+        RecordingStore.deleteAllRecordings()
+        historyVersion += 1
+    }
+
     func historyChanged() {
         historyVersion += 1
     }

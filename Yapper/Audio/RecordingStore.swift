@@ -34,10 +34,7 @@ enum RecordingStore {
 
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            var dir = directory
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            try? dir.setResourceValues(values)
+            excludeFromBackup()
 
             let file = "\(id.uuidString).m4a"
             let settings: [String: Any] = [
@@ -67,15 +64,18 @@ enum RecordingStore {
         return (Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))), format.sampleRate)
     }
 
+    /// Recordings stay out of iCloud backups.
+    static func excludeFromBackup() {
+        var dir = directory
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? dir.setResourceValues(values)
+    }
+
     /// Bytes on disk, 0 when the file is gone.
     static func size(of file: String) -> Int64 {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url(for: file).path)
         return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
-    }
-
-    /// The space all kept recordings take.
-    static func totalSize() -> Int64 {
-        HistoryStore.load().compactMap(\.audioFile).reduce(0) { $0 + size(of: $1) }
     }
 
     /// What keeping recordings for `hours` would delete right now, so
@@ -112,6 +112,28 @@ enum RecordingStore {
             try? FileManager.default.removeItem(at: url(for: file))
         }
         return changed
+    }
+
+    /// The space all kept recordings take.
+    static func totalSize() -> Int64 {
+        HistoryStore.load().compactMap(\.audioFile).reduce(0) { $0 + size(of: $1) }
+    }
+
+    /// How many recordings are kept right now, and the space they take.
+    static func summary(of records: [DictationRecord] = HistoryStore.load()) -> (count: Int, bytes: Int64) {
+        let files = records.compactMap(\.audioFile).filter { exists($0) }
+        return (files.count, files.reduce(0) { $0 + size(of: $1) })
+    }
+
+    /// Deletes every recording and keeps all the text: History forgets
+    /// which recording each entry had.
+    static func deleteAllRecordings() {
+        var records = HistoryStore.load()
+        if records.contains(where: { $0.audioFile != nil }) {
+            for index in records.indices { records[index].audioFile = nil }
+            HistoryStore.save(records)
+        }
+        deleteAll()
     }
 
     static func deleteAll() {

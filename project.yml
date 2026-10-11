@@ -175,7 +175,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.widgets
         TARGETED_DEVICE_FAMILY: "1"
 
-  # Pure-logic tests (cleanup, spacing). No host app needed.
+  # Pure-logic tests (cleanup, spacing, export formats). No host app needed.
   YapperTests:
     type: bundle.unit-test
     platform: iOS
@@ -184,7 +184,9 @@ targets:
       - path: Shared/Common/TextProcessor.swift
       - path: Shared/Common/LoadTimings.swift
       - path: Shared/Common/Retention.swift
+      - path: Shared/Common/DictationRecord.swift
       - path: Yapper/Audio/AudioChunks.swift
+      - path: Yapper/History/HistoryExport.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.tests
