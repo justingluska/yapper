@@ -30,7 +30,7 @@ final class AppScreenshots: XCTestCase {
             app.tabBars.buttons["History"].tap()
             attach(app, name: "history-\(suffix)")
             app.cells.element(boundBy: 1).tap()
-            attach(app, name: "history-failed-detail-\(suffix)")
+            attach(app, name: "history-detail-\(suffix)")
             app.swipeDown(velocity: .fast)
             let more = app.buttons["More"].firstMatch
             if more.waitForExistence(timeout: 2) {
@@ -51,7 +51,7 @@ final class AppScreenshots: XCTestCase {
 
             app.tabBars.buttons["Home"].tap()
             app.swipeDown()
-            let models = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Parakeet'")).firstMatch
+            let models = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Parakeet' OR label CONTAINS 'Apple on-device'")).firstMatch
             if models.waitForExistence(timeout: 2) {
                 models.tap()
                 attach(app, name: "models-\(suffix)")

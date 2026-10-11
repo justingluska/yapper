@@ -28,13 +28,9 @@ struct YapperApp: App {
         for (index, text) in samples.enumerated() {
             records.append(DictationRecord(
                 date: Date().addingTimeInterval(-Double(index) * 5_400), text: text, raw: text,
-                duration: Double(text.count) / 14, engine: Engine.parakeetNeuralEngine.rawValue,
-                model: "Parakeet Ultra", processingTime: 0.21))
+                duration: Double(text.count) / 14, engine: Engine.appleAnalyzer.rawValue,
+                model: "Apple on-device", processingTime: 0.21))
         }
-        records.insert(DictationRecord(
-            date: Date().addingTimeInterval(-1_800), text: "", raw: "", duration: 4.2,
-            engine: Engine.parakeetNeuralEngine.rawValue, model: "Parakeet Ultra",
-            error: "Parakeet Ultra was still loading. Only use Parakeet is on, so Yapper didn't use Apple's recognizer."), at: 1)
         HistoryStore.save(records)
         for day in 0..<120 where (day * 7) % 5 != 0 {
             guard let date = calendar.date(byAdding: .day, value: -day, to: Date()) else { continue }
