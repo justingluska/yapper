@@ -6,12 +6,26 @@ struct HistoryView: View {
     @State private var records: [DictationRecord] = []
     @State private var query = ""
     @State private var selected: DictationRecord?
-    @State private var confirmDeleteAll = false
-    @State private var confirmDeleteAllAgain = false
+    /// Select mode: tap rows to pick several, then share, copy or delete them.
+    @State private var selecting = false
+    @State private var selection: Set<UUID> = []
+    @State private var exporting: ExportRequest?
+    @State private var confirmDeleteSelected = false
+    @State private var toast: String?
 
     private var filtered: [DictationRecord] {
         guard !query.isEmpty else { return records }
         return records.filter { $0.text.localizedCaseInsensitiveContains(query) || ($0.error ?? "").localizedCaseInsensitiveContains(query) }
+    }
+
+    /// In the order History shows them.
+    private var selectedRecords: [DictationRecord] {
+        records.filter { selection.contains($0.id) }
+    }
+
+    /// Select All covers what's showing, so a search can narrow it first.
+    private var allSelected: Bool {
+        !filtered.isEmpty && filtered.allSatisfy { selection.contains($0.id) }
     }
 
     var body: some View {
@@ -21,7 +35,7 @@ struct HistoryView: View {
                     Text("Nothing yet")
                         .font(Theme.font(17, .semibold))
                         .foregroundStyle(Theme.textEmphasis)
-                    Text("Every dictation is kept here on your iPhone, including ones that failed, so nothing you say is lost. Recordings are kept for a day by default so you can play them back or transcribe them again. Change both in Settings.")
+                    Text("Every dictation is kept here on your iPhone, including ones that failed, so nothing you say is lost. Recordings are kept for 30 days by default so you can play them back or transcribe them again. Change both in Settings.")
                         .font(Theme.font(14))
                         .foregroundStyle(Theme.textMuted)
                 }
@@ -29,22 +43,49 @@ struct HistoryView: View {
                 .listRowSeparator(.hidden)
             }
             ForEach(filtered) { record in
-                Button { selected = record } label: {
-                    HistoryRow(record: record)
+                Button {
+                    if selecting { toggle(record) } else { selected = record }
+                } label: {
+                    HStack(spacing: 12) {
+                        if selecting {
+                            let on = selection.contains(record.id)
+                            Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(on ? Theme.textEmphasis : Theme.textFaint)
+                                .accessibilityHidden(true)
+                        }
+                        HistoryRow(record: record)
+                    }
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selecting && selection.contains(record.id) ? .isSelected : [])
                 .listRowBackground(Theme.background)
                 .listRowSeparatorTint(Theme.hairline)
                 .contextMenu {
-                    if !record.failed {
-                        Button("Copy", systemImage: "doc.on.doc") { Clipboard.copy(record.text) }
-                        ShareLink(item: record.text)
+                    if !selecting {
+                        if !record.failed {
+                            Button("Copy", systemImage: "doc.on.doc") { copy(record) }
+                            Button("Share", systemImage: "square.and.arrow.up") { ShareSheet.present([record.text]) }
+                        }
+                        Button("Details", systemImage: "info.circle") { selected = record }
+                        Button("Select", systemImage: "checkmark.circle") { startSelecting(with: record) }
+                        Button("Delete", systemImage: "trash", role: .destructive) { delete([record]) }
                     }
-                    Button("Details", systemImage: "info.circle") { selected = record }
-                    Button("Delete", systemImage: "trash", role: .destructive) { delete(record) }
                 }
-                .swipeActions {
-                    Button("Delete", role: .destructive) { delete(record) }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if !selecting {
+                        Button("Delete", systemImage: "trash", role: .destructive) { delete([record]) }
+                        if !record.failed {
+                            Button("Share", systemImage: "square.and.arrow.up") { ShareSheet.present([record.text]) }
+                                .tint(.gray)
+                        }
+                    }
+                }
+                .swipeActions(edge: .leading) {
+                    if !selecting, !record.failed {
+                        Button("Copy", systemImage: "doc.on.doc") { copy(record) }
+                            .tint(Theme.ready)
+                    }
                 }
             }
         }
@@ -53,50 +94,163 @@ struct HistoryView: View {
         .background(Theme.background)
         .searchable(text: $query, prompt: "Search history")
         .navigationTitle("History")
-        .toolbar {
-            if !records.isEmpty {
-                Menu {
-                    Button("Delete All", systemImage: "trash", role: .destructive) { confirmDeleteAll = true }
-                } label: { Image(systemName: "ellipsis.circle") }
-                .accessibilityLabel("More")
+        .toolbar { toolbar }
+        .toolbar(selecting ? .hidden : .visible, for: .tabBar)
+        .overlay(alignment: .bottom) {
+            if let toast {
+                Text(toast)
+                    .font(Theme.font(14, .medium))
+                    .foregroundStyle(Theme.onPrimary)
+                    .padding(.horizontal, 16)
+                    .frame(height: 36)
+                    .background(Capsule().fill(Theme.primary))
+                    .padding(.bottom, 16)
+                    .transition(.opacity)
             }
         }
-        // Two separate confirmations: this can't be undone.
-        .alert("Delete all history?", isPresented: $confirmDeleteAll) {
+        .alert(deleteSelectedTitle, isPresented: $confirmDeleteSelected) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete All", role: .destructive) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { confirmDeleteAllAgain = true }
+            Button("Delete", role: .destructive) {
+                delete(selectedRecords)
+                selection = []
+                if records.isEmpty { selecting = false }
             }
         } message: {
-            Text("This removes all \(records.count) dictations and their recordings from this iPhone. Your stats stay.")
-        }
-        .alert("Are you sure?", isPresented: $confirmDeleteAllAgain) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Everything", role: .destructive) {
-                controller.deleteAllHistory()
-                records = []
-            }
-        } message: {
-            Text("There's no undo, and nothing is backed up anywhere else.")
+            Text("Their recordings go too. Your stats stay. This can't be undone.")
         }
         .sheet(item: $selected) { record in
             DictationDetailView(record: record) {
-                delete(record)
+                delete([record])
                 selected = nil
             }
             .environmentObject(controller)
-            .presentationDetents([.medium, .large])
+            // Full height: a long dictation reads to its last word, with the
+            // details under it, instead of being cut off at half height.
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
-        .onAppear { records = HistoryStore.load() }
-        .onChange(of: controller.historyVersion) { _, _ in records = HistoryStore.load() }
+        .sheet(item: $exporting) { request in
+            ExportView(records: request.records)
+        }
+        .onAppear { reload() }
+        .onChange(of: controller.historyVersion) { _, _ in reload() }
     }
 
-    private func delete(_ record: DictationRecord) {
-        records.removeAll { $0.id == record.id }
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        if selecting {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(allSelected ? "Deselect All" : "Select All") {
+                    if allSelected {
+                        selection.subtract(filtered.map(\.id))
+                    } else {
+                        selection.formUnion(filtered.map(\.id))
+                    }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") {
+                    selecting = false
+                    selection = []
+                }
+                .fontWeight(.semibold)
+            }
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button {
+                    exporting = ExportRequest(records: selectedRecords)
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .disabled(selection.isEmpty)
+                .accessibilityIdentifier("history.selection.share")
+                Spacer()
+                Text(selection.isEmpty ? "Select dictations" : "\(selection.count) selected")
+                    .font(Theme.font(13, .medium))
+                    .foregroundStyle(Theme.textMuted)
+                    .fixedSize()
+                Spacer()
+                Button {
+                    copySelected()
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .disabled(!selectedRecords.contains { !$0.failed })
+                .accessibilityIdentifier("history.selection.copy")
+                Button(role: .destructive) {
+                    confirmDeleteSelected = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(selection.isEmpty)
+                .accessibilityIdentifier("history.selection.delete")
+            }
+        } else if !records.isEmpty {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Select") { selecting = true }
+            }
+        }
+    }
+
+    private var deleteSelectedTitle: String {
+        selection.count == 1 ? "Delete 1 dictation?" : "Delete \(selection.count) dictations?"
+    }
+
+    private func reload() {
+        records = HistoryStore.load()
+        // Forget anything that's no longer in History.
+        selection.formIntersection(records.map(\.id))
+        if records.isEmpty { selecting = false }
+    }
+
+    private func toggle(_ record: DictationRecord) {
+        if selection.contains(record.id) {
+            selection.remove(record.id)
+        } else {
+            selection.insert(record.id)
+        }
+    }
+
+    private func startSelecting(with record: DictationRecord) {
+        selecting = true
+        selection = [record.id]
+    }
+
+    private func copy(_ record: DictationRecord) {
+        Clipboard.copy(record.text)
+        show("Copied")
+    }
+
+    /// The selected dictations' text, one paragraph each, in History's order.
+    private func copySelected() {
+        let texts = selectedRecords.filter { !$0.failed }.map(\.text)
+        guard !texts.isEmpty else { return }
+        Clipboard.copy(texts.joined(separator: "\n\n"))
+        Haptics.success()
+        show(texts.count == 1 ? "Copied 1 dictation" : "Copied \(texts.count) dictations")
+    }
+
+    /// A short note at the bottom of the screen, gone after a moment.
+    private func show(_ message: String) {
+        withAnimation { toast = message }
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            withAnimation { if toast == message { toast = nil } }
+        }
+    }
+
+    private func delete(_ doomed: [DictationRecord]) {
+        let ids = Set(doomed.map(\.id))
+        records.removeAll { ids.contains($0.id) }
         HistoryStore.save(records)
         RecordingStore.prune()
         controller.historyChanged()
     }
+}
+
+/// The dictations Export was opened for.
+private struct ExportRequest: Identifiable {
+    let id = UUID()
+    let records: [DictationRecord]
 }
 
 private struct HistoryRow: View {
@@ -143,7 +297,9 @@ struct DictationDetailView: View {
     @State var record: DictationRecord
     let onDelete: () -> Void
     @State private var copied = false
+    @State private var shareError: String?
     @StateObject private var player = RecordingPlayer()
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -159,16 +315,20 @@ struct DictationDetailView: View {
                             .foregroundStyle(Theme.textEmphasis)
                             .textSelection(.enabled)
 
-                        Button(copied ? "Copied" : "Copy") {
-                            Clipboard.copy(record.text)
-                            copied = true
+                        HStack(spacing: 10) {
+                            Button(copied ? "Copied" : "Copy") {
+                                Clipboard.copy(record.text)
+                                copied = true
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
+                            share
                         }
-                        .buttonStyle(PrimaryButtonStyle())
                     }
 
                     recording
 
                     VStack(alignment: .leading, spacing: 0) {
+                        if !record.failed { row("Words", "\(record.wordCount)") }
                         row("Engine", record.engineLabel)
                         if let model = record.model { row("Model", model) }
                         row("Audio", String(format: "%.1f s", record.duration))
@@ -208,7 +368,52 @@ struct DictationDetailView: View {
             .background(Theme.background)
             .navigationTitle(record.failed ? "Failed dictation" : "Dictation")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .onDisappear { player.stop() }
+            .alert("Couldn't share the recording", isPresented: Binding(get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(shareError ?? "")
+            }
+        }
+    }
+
+    /// Share the text, or (while it's kept) the recording.
+    @ViewBuilder
+    private var share: some View {
+        if RecordingStore.exists(record.audioFile) {
+            Menu {
+                Button("Text", systemImage: "text.alignleft") { ShareSheet.present([record.text]) }
+                Button("Recording", systemImage: "waveform") { shareRecording() }
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .font(Theme.font(16, .medium))
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity, minHeight: Theme.controlHeight)
+                    .background(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).fill(Theme.fillInput))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).strokeBorder(Theme.borderInput))
+            }
+        } else {
+            Button {
+                ShareSheet.present([record.text])
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+    }
+
+    private func shareRecording() {
+        player.stop()
+        do {
+            let file = try HistoryTransfer.prepareRecording(of: record)
+            ShareSheet.present([file]) { _ in HistoryTransfer.cleanUp([file]) }
+        } catch {
+            shareError = error.localizedDescription
         }
     }
 
