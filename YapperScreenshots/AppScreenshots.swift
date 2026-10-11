@@ -31,16 +31,7 @@ final class AppScreenshots: XCTestCase {
             attach(app, name: "history-\(suffix)")
             app.cells.element(boundBy: 1).tap()
             attach(app, name: "history-detail-\(suffix)")
-            app.swipeDown(velocity: .fast)
-            let more = app.buttons["More"].firstMatch
-            if more.waitForExistence(timeout: 2) {
-                more.tap()
-                if app.buttons["Delete All"].waitForExistence(timeout: 2) {
-                    app.buttons["Delete All"].tap()
-                    attach(app, name: "history-delete-all-1-\(suffix)")
-                    app.alerts.buttons["Cancel"].firstMatch.tap()
-                }
-            }
+            app.navigationBars.buttons["Done"].firstMatch.tap()
 
             app.tabBars.buttons["Settings"].tap()
             attach(app, name: "settings-1-\(suffix)")
@@ -58,6 +49,141 @@ final class AppScreenshots: XCTestCase {
             }
             app.terminate()
         }
+    }
+
+    /// History's tools with a fuller sample (`-sampleHistory`: older and
+    /// longer dictations, some with recordings): a long dictation at full
+    /// height, row swipes, Select mode, export options, and Settings ›
+    /// History with both delete confirmations. Nothing is deleted: every
+    /// confirmation is cancelled.
+    func testHistoryManagement() {
+        for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            var app = launch(dark: dark)
+
+            app.tabBars.buttons["History"].tap()
+            attach(app, name: "manage-01-history-\(suffix)")
+
+            // A long dictation opens at full height and reads to the end.
+            let long = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Okay, so here'")).firstMatch
+            if long.waitForExistence(timeout: 2) {
+                long.tap()
+                attach(app, name: "manage-02-detail-long-\(suffix)")
+                app.swipeUp()
+                attach(app, name: "manage-03-detail-long-end-\(suffix)")
+                app.navigationBars.buttons["Done"].firstMatch.tap()
+            }
+
+            // Row swipes: Delete and Share one way, Copy the other. Short
+            // drags, so a full swipe never deletes.
+            let row = app.cells.element(boundBy: 1)
+            drag(row, from: 0.92, to: 0.5)
+            attach(app, name: "manage-04-swipe-share-delete-\(suffix)")
+            drag(row, from: 0.3, to: 0.95)
+            drag(row, from: 0.08, to: 0.45)
+            attach(app, name: "manage-05-swipe-copy-\(suffix)")
+            drag(row, from: 0.7, to: 0.05)
+
+            // Select mode.
+            app.navigationBars.buttons["Select"].firstMatch.tap()
+            attach(app, name: "manage-06-select-\(suffix)")
+            app.cells.element(boundBy: 0).tap()
+            app.cells.element(boundBy: 2).tap()
+            attach(app, name: "manage-07-select-two-\(suffix)")
+            app.buttons["history.selection.delete"].firstMatch.tap()
+            attach(app, name: "manage-08-select-delete-confirm-\(suffix)")
+            app.alerts.buttons["Cancel"].firstMatch.tap()
+            app.navigationBars.buttons["Select All"].firstMatch.tap()
+            attach(app, name: "manage-09-select-all-\(suffix)")
+            app.buttons["history.selection.share"].firstMatch.tap()
+            attach(app, name: "manage-10-export-selection-\(suffix)")
+            app.buttons.containing(NSPredicate(format: "label BEGINSWITH 'JSON'")).firstMatch.tap()
+            let include = app.switches["Include recordings"].firstMatch
+            if include.waitForExistence(timeout: 2) {
+                // The tappable part of a SwiftUI toggle is its switch.
+                let knob = include.switches.firstMatch
+                (knob.exists ? knob : include).tap()
+            }
+            attach(app, name: "manage-11-export-json-recordings-\(suffix)")
+            app.navigationBars.buttons["Cancel"].firstMatch.tap()
+            app.navigationBars.buttons["Done"].firstMatch.tap()
+
+            // Settings › History.
+            app.tabBars.buttons["Settings"].tap()
+            let deleteHistory = app.buttons["Delete all history…"].firstMatch
+            scroll(app, to: deleteHistory)
+            attach(app, name: "manage-12-settings-history-\(suffix)")
+
+            app.buttons["Export history…"].firstMatch.tap()
+            attach(app, name: "manage-13-settings-export-\(suffix)")
+            app.navigationBars.buttons["Cancel"].firstMatch.tap()
+
+            app.buttons["Delete all recordings…"].firstMatch.tap()
+            attach(app, name: "manage-14-delete-recordings-first-\(suffix)")
+            let recordingsNext = app.buttons["Delete All Recordings…"].firstMatch
+            if recordingsNext.waitForExistence(timeout: 2) {
+                recordingsNext.tap()
+                attach(app, name: "manage-15-delete-recordings-final-\(suffix)")
+                app.alerts.buttons["Cancel"].firstMatch.tap()
+            }
+
+            deleteHistory.tap()
+            attach(app, name: "manage-16-delete-history-first-\(suffix)")
+            let historyNext = app.buttons["Delete All History…"].firstMatch
+            if historyNext.waitForExistence(timeout: 2) {
+                historyNext.tap()
+                attach(app, name: "manage-17-delete-history-final-\(suffix)")
+                app.alerts.buttons["Cancel"].firstMatch.tap()
+            }
+
+            // The share sheet and the file picker run outside the app, so
+            // capture the whole screen and start fresh after each.
+            app.tabBars.buttons["History"].tap()
+            app.navigationBars.buttons["Select"].firstMatch.tap()
+            app.navigationBars.buttons["Select All"].firstMatch.tap()
+            app.buttons["history.selection.share"].firstMatch.tap()
+            app.buttons["export.share"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 3)
+            attachScreen(name: "manage-18-share-sheet-\(suffix)")
+            app.terminate()
+
+            app = launch(dark: dark)
+            app.tabBars.buttons["Settings"].tap()
+            let importRow = app.buttons["Import history…"].firstMatch
+            scroll(app, to: importRow)
+            importRow.tap()
+            Thread.sleep(forTimeInterval: 3)
+            attachScreen(name: "manage-19-import-picker-\(suffix)")
+            app.terminate()
+        }
+    }
+
+    private func launch(dark: Bool) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screenshots", "-sampleHistory"] + (dark ? ["-dark"] : [])
+        app.launch()
+        return app
+    }
+
+    /// A horizontal drag across `element`, from and to fractions of its width.
+    private func drag(_ element: XCUIElement, from start: CGFloat, to end: CGFloat) {
+        guard element.waitForExistence(timeout: 2) else { return }
+        element.coordinate(withNormalizedOffset: CGVector(dx: start, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: element.coordinate(withNormalizedOffset: CGVector(dx: end, dy: 0.5)))
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+
+    private func scroll(_ app: XCUIApplication, to element: XCUIElement) {
+        for _ in 0..<10 where !(element.exists && element.isHittable) {
+            app.swipeUp()
+        }
+    }
+
+    private func attachScreen(name: String) {
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     /// Every onboarding step, light and dark.

@@ -15,9 +15,12 @@ struct YapperApp: App {
     }
 
     /// Sample History and stats for the screenshot tests (simulator only;
-    /// `-screenshots` is never passed on a phone).
+    /// `-screenshots` is never passed on a phone). History is written fresh on
+    /// every launch, so each test sees its own sample; stats only once.
+    /// `-sampleHistory` adds older dictations, a long one and recordings, for
+    /// the History tools.
     private static func seedScreenshotData() {
-        guard HistoryStore.load().isEmpty else { return }
+        let firstRun = HistoryStore.load().isEmpty
         let calendar = Calendar.current
         var records: [DictationRecord] = []
         let samples = [
@@ -31,7 +34,28 @@ struct YapperApp: App {
                 duration: Double(text.count) / 14, engine: Engine.appleAnalyzer.rawValue,
                 model: "Apple on-device", processingTime: 0.21))
         }
+        if ProcessInfo.processInfo.arguments.contains("-sampleHistory") {
+            let older: [(days: Double, text: String, recording: Bool)] = [
+                (1, "Okay, so here's the plan for Saturday. We meet at the trailhead at eight, not seven thirty, because the parking lot doesn't open until quarter to. Bring two liters of water each, more if it's hot, and something salty for the top. The loop is about eleven miles with the long climb in the first three, so we'll take it slow and stop at the creek crossing for a snack. If it rains on Friday night the lower trail turns to mud, and in that case we'll do the ridge route instead, which is shorter but steeper. I'll text everyone by nine on Friday either way. Sam is driving the second car and can take four people plus packs. After the hike there's that taco place near the gas station that opens at two, and I already called ahead for a table for eight. If anyone needs to bail, just tell me by Thursday so I can fix the reservation. Last thing: wear real boots, not running shoes, the descent is loose gravel the whole way down.", true),
+                (2, "Note to self: the plumber said Tuesday between ten and two, and to leave the side gate open.", true),
+                (2.4, "Pick up oat milk, coffee filters, lemons and a birthday card for Dana.", true),
+                (5, "Thanks for the intro. I'd love to grab coffee next week if you have time.", false),
+                (9, "The quarterly numbers look good, but let's double-check the churn figure before we send it.", false),
+                (20, "Book the dentist for the first week of next month, mornings only.", false),
+            ]
+            let silence = [Float](repeating: 0, count: 32_000)
+            for item in older {
+                let id = UUID()
+                records.append(DictationRecord(
+                    id: id, date: Date().addingTimeInterval(-item.days * 86_400), text: item.text, raw: item.text,
+                    duration: Double(item.text.count) / 14, engine: Engine.appleAnalyzer.rawValue,
+                    model: "Apple on-device", processingTime: 0.34,
+                    audioFile: item.recording ? RecordingStore.save(silence, sampleRate: 16_000, id: id) : nil))
+            }
+        }
         HistoryStore.save(records)
+        RecordingStore.prune()
+        guard firstRun else { return }
         for day in 0..<120 where (day * 7) % 5 != 0 {
             guard let date = calendar.date(byAdding: .day, value: -day, to: Date()) else { continue }
             StatsStore.record(words: 40 + (day * 37) % 400, seconds: Double(20 + (day * 13) % 160), on: date)
