@@ -114,11 +114,6 @@ enum RecordingStore {
         return changed
     }
 
-    /// The space all kept recordings take.
-    static func totalSize() -> Int64 {
-        HistoryStore.load().compactMap(\.audioFile).reduce(0) { $0 + size(of: $1) }
-    }
-
     /// How many recordings are kept right now, and the space they take.
     static func summary(of records: [DictationRecord] = HistoryStore.load()) -> (count: Int, bytes: Int64) {
         let files = records.compactMap(\.audioFile).filter { exists($0) }

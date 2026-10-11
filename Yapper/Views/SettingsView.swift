@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var controller: DictationController
@@ -9,7 +10,15 @@ struct SettingsView: View {
     @State private var historyDays = Settings.historyDays
     @State private var copyEveryDictation = Settings.copyEveryDictation
     @State private var recordingHours = Settings.recordingHours
-    @State private var recordingBytes: Int64 = 0
+    @State private var historyCount = 0
+    @State private var recordings: (count: Int, bytes: Int64) = (0, 0)
+    @State private var exporting = false
+    @State private var importing = false
+    @State private var importOutcome: ImportOutcome?
+    /// Delete all: the first confirmation says what goes, the second is the
+    /// last word. Different kinds of dialog, so one double tap can't do both.
+    @State private var deleteFirst: BulkDelete?
+    @State private var deleteFinal: BulkDelete?
     /// A retention change that would delete something, waiting for the
     /// user to confirm it.
     @State private var pendingCut: PendingCut?
@@ -82,14 +91,22 @@ struct SettingsView: View {
                         Text(Retention.label(hours: hours)).tag(hours)
                     }
                 }
+                Button("Export history…") { exporting = true }
+                    .disabled(historyCount == 0)
+                Button("Import history…") { importing = true }
+                Button("Delete all recordings…", role: .destructive) { deleteFirst = .recordings }
+                    .disabled(recordings.count == 0)
+                Button("Delete all history…", role: .destructive) { deleteFirst = .history }
+                    .disabled(historyCount == 0)
             } header: {
                 SectionLabel(text: "History")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Text is every dictation's words, including the ones that failed. Recordings are the audio, kept so you can play a dictation back or transcribe it again. When a recording is deleted, its text stays. Both stay on this iPhone.")
-                    if recordingBytes > 0 {
-                        Text("Recordings use \(recordingBytes.formatted(.byteCount(style: .file))) right now.")
+                    if recordings.bytes > 0 {
+                        Text("Recordings use \(recordings.bytes.formatted(.byteCount(style: .file))) right now.")
                     }
+                    Text("Deleting history keeps your stats. There's no account or cloud copy, so to move to a new iPhone, export as JSON with recordings and import it there.")
                 }
             }
 
@@ -143,9 +160,55 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .onAppear {
             controller.refreshDownloadedModels()
-            recordingBytes = RecordingStore.totalSize()
+            refreshCounts()
         }
-        .onChange(of: controller.historyVersion) { _, _ in recordingBytes = RecordingStore.totalSize() }
+        .onChange(of: controller.historyVersion) { _, _ in refreshCounts() }
+        .sheet(isPresented: $exporting) {
+            ExportView(records: HistoryStore.load(), offersRange: true)
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .audio], allowsMultipleSelection: true) { result in
+            importHistory(result)
+        }
+        .alert(importOutcome?.title ?? "", isPresented: Binding(get: { importOutcome != nil }, set: { if !$0 { importOutcome = nil } }), presenting: importOutcome) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { outcome in
+            Text(outcome.message)
+        }
+        .confirmationDialog(deleteFirst.map(firstTitle) ?? "", isPresented: Binding(get: { deleteFirst != nil }, set: { if !$0 { deleteFirst = nil } }),
+                            titleVisibility: .visible, presenting: deleteFirst) { kind in
+            switch kind {
+            case .history:
+                Button("Delete All History…", role: .destructive) { deleteFinal = .history }
+                Button("Export First…") { exporting = true }
+            case .recordings:
+                Button("Delete All Recordings…", role: .destructive) { deleteFinal = .recordings }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { kind in
+            switch kind {
+            case .history:
+                Text("Every dictation and its recording goes from this iPhone. Your stats stay.")
+            case .recordings:
+                Text("The audio goes. The text of every dictation stays in History, and so do your stats. New dictations are still recorded while Keep recordings is on.")
+            }
+        }
+        .alert(finalTitle,
+               isPresented: Binding(get: { deleteFinal != nil }, set: { if !$0 { deleteFinal = nil } }), presenting: deleteFinal) { kind in
+            Button("Cancel", role: .cancel) {}
+            switch kind {
+            case .history:
+                Button("Delete Everything", role: .destructive) { controller.deleteAllHistory() }
+            case .recordings:
+                Button("Delete Recordings", role: .destructive) { controller.deleteAllRecordings() }
+            }
+        } message: { kind in
+            switch kind {
+            case .history:
+                Text("Nothing is backed up anywhere else. To keep a copy, cancel and export first.")
+            case .recordings:
+                Text("They can't be played back or transcribed again.")
+            }
+        }
         .alert(pendingCut?.title ?? "", isPresented: Binding(get: { pendingCut != nil }, set: { if !$0 { pendingCut = nil } }), presenting: pendingCut) { cut in
             Button("Delete", role: .destructive) {
                 switch cut.setting {
@@ -175,6 +238,41 @@ struct SettingsView: View {
         case 0: return "Last dictation only"
         case 1: return "1 day"
         default: return "\(days) days"
+        }
+    }
+
+    // MARK: History
+
+    private func refreshCounts() {
+        let records = HistoryStore.load()
+        historyCount = records.count
+        recordings = RecordingStore.summary(of: records)
+    }
+
+    private var finalTitle: String {
+        deleteFinal == .recordings ? "This can't be undone. Delete all recordings?" : "This can't be undone. Delete everything?"
+    }
+
+    /// "Delete 312 dictations and 47 recordings (1.2 GB)?"
+    private func firstTitle(_ kind: BulkDelete) -> String {
+        let size = recordings.bytes.formatted(.byteCount(style: .file))
+        let files = recordings.count == 1 ? "1 recording" : "\(recordings.count) recordings"
+        switch kind {
+        case .history:
+            let dictations = historyCount == 1 ? "1 dictation" : "\(historyCount) dictations"
+            return recordings.count == 0 ? "Delete \(dictations)?" : "Delete \(dictations) and \(files) (\(size))?"
+        case .recordings:
+            return "Delete \(files) (\(size))?"
+        }
+    }
+
+    private func importHistory(_ result: Result<[URL], Error>) {
+        do {
+            let imported = try HistoryTransfer.importFiles(try result.get())
+            controller.historyChanged()
+            importOutcome = ImportOutcome(imported, keepText: historyLabel(historyDays))
+        } catch {
+            importOutcome = ImportOutcome(title: "Couldn't import", message: error.localizedDescription)
         }
     }
 
@@ -243,6 +341,39 @@ struct SettingsView: View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+}
+
+/// Settings › History › Delete all…
+private enum BulkDelete {
+    case history
+    case recordings
+}
+
+/// What an import did, in words.
+private struct ImportOutcome {
+    let title: String
+    let message: String
+
+    init(title: String, message: String) {
+        self.title = title
+        self.message = message
+    }
+
+    init(_ result: HistoryTransfer.ImportResult, keepText: String) {
+        func dictations(_ n: Int) -> String { n == 1 ? "1 dictation" : "\(n) dictations" }
+        var lines: [String] = []
+        if result.recordings > 0 {
+            lines.append(result.recordings == 1 ? "1 recording came with it." : "\(result.recordings) recordings came with them.")
+        }
+        if result.alreadyHere > 0 {
+            lines.append("\(dictations(result.alreadyHere)) \(result.alreadyHere == 1 ? "was" : "were") already here.")
+        }
+        if result.tooOld > 0 {
+            lines.append("\(dictations(result.tooOld)) \(result.tooOld == 1 ? "was" : "were") older than Keep text (\(keepText)), so \(result.tooOld == 1 ? "it was" : "they were") left out.")
+        }
+        title = result.added == 0 ? "Nothing new to add" : "Added \(dictations(result.added))"
+        message = lines.isEmpty ? "They're in History now." : lines.joined(separator: " ")
     }
 }
 
