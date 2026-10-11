@@ -75,6 +75,7 @@ struct HistoryView: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     if !selecting {
                         Button("Delete", systemImage: "trash", role: .destructive) { delete([record]) }
+                            .tint(Theme.recording)
                         if !record.failed {
                             Button("Share", systemImage: "square.and.arrow.up") { ShareSheet.present([record.text]) }
                                 .tint(.gray)
@@ -181,6 +182,7 @@ struct HistoryView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+                .tint(Theme.recording)
                 .disabled(selection.isEmpty)
                 .accessibilityIdentifier("history.selection.delete")
             }
