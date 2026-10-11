@@ -95,6 +95,8 @@ cap how much you can say before you pay. Yapper does none of that.
   button to turn the mic off
 - Control Center control, Action Button, Back Tap, Siri ("Yap with Yapper") and Shortcuts ("Start Dictating")
 - Optional: copy every dictation to the clipboard (this iPhone only)
+- The screen stays on while Yapper is listening, transcribing or downloading a model, so the phone doesn't lock
+  mid-dictation (while Yapper is on screen; iOS doesn't let a keyboard hold it awake in other apps)
 
 <p align="center">
   <img src="docs/images/dynamic-island.png" alt="Yapper in the Dynamic Island: compact and expanded, ready to yap, with an Off button" width="820">

@@ -23,7 +23,9 @@ final class DictationController: ObservableObject {
     }
 
     @Published private(set) var phase: Bridge.Phase = .idle
-    @Published private(set) var modelState: ModelState = .notDownloaded
+    @Published private(set) var modelState: ModelState = .notDownloaded {
+        didSet { updateScreenAwake() }
+    }
     @Published private(set) var level: Float = 0
     @Published private(set) var recordingStarted: Date?
     @Published private(set) var sessionEnds: Date?
@@ -50,7 +52,9 @@ final class DictationController: ObservableObject {
     /// Bumped whenever History changes, so its views reload.
     @Published private(set) var historyVersion = 0
     /// True while a saved recording is being transcribed again.
-    @Published private(set) var retranscribing = false
+    @Published private(set) var retranscribing = false {
+        didSet { updateScreenAwake() }
+    }
     /// Why the Live Activity (Dynamic Island, Lock Screen) isn't showing,
     /// when it isn't. Nil when it is, or when no session is on.
     @Published private(set) var liveActivityProblem: String?
@@ -268,9 +272,6 @@ final class DictationController: ObservableObject {
         if choice != ModelChoice.current { await selectModel(choice) } else { ModelChoice.current = choice }
         Settings.wantsModelDownload = true
         modelState = .downloading(progress: 0, label: "Starting download")
-        // Downloads stop if iOS suspends the app, so keep it awake meanwhile.
-        UIApplication.shared.isIdleTimerDisabled = true
-        defer { UIApplication.shared.isIdleTimerDisabled = false }
         do {
             if !Transcriber.isDownloaded(choice) {
                 try await transcriber.download(choice) { progress, label in
@@ -739,6 +740,21 @@ final class DictationController: ObservableObject {
         beat()
         Bridge.post(.stateChanged)
         updateActivity()
+        updateScreenAwake()
+    }
+
+    /// Keeps the screen from dimming and locking while Yapper is busy: a
+    /// dictation being recorded or transcribed, a saved recording transcribed
+    /// again, or a model download (which stops if iOS suspends the app). iOS
+    /// only honors this while Yapper is on screen; a keyboard extension
+    /// can't hold the screen awake in another app.
+    private func updateScreenAwake() {
+        let downloading: Bool
+        if case .downloading = modelState { downloading = true } else { downloading = false }
+        let busy = phase == .recording || phase == .transcribing || retranscribing || downloading
+        if UIApplication.shared.isIdleTimerDisabled != busy {
+            UIApplication.shared.isIdleTimerDisabled = busy
+        }
     }
 
     private func updateLevel(_ value: Float) {
