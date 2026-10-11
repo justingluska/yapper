@@ -3,12 +3,19 @@ import AVFoundation
 /// Writes mono float samples to an AAC (.m4a) file. Kept apart from
 /// RecordingStore so the tests can check every microphone sample rate.
 enum RecordingEncoder {
+    /// 64 kbps for the built-in microphone (44.1 and 48 kHz). AAC refuses
+    /// that rate below about 22 kHz, which is what Bluetooth headsets record
+    /// at (16 kHz, or 8 kHz on older ones): there it's two bits a sample.
+    static func bitRate(sampleRate: Double) -> Int {
+        min(64_000, Int(sampleRate * 2))
+    }
+
     static func settings(sampleRate: Double) -> [String: Any] {
         [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: sampleRate,
             AVNumberOfChannelsKey: 1,
-            AVEncoderBitRateKey: 64_000,
+            AVEncoderBitRateKey: bitRate(sampleRate: sampleRate),
         ]
     }
 
