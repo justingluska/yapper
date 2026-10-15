@@ -4,8 +4,10 @@ name: Screenshots
 # the app and of the keyboard layout in every state (light and dark), so
 # design changes can be reviewed without a phone. Download with
 # `gh run download <run-id> -n screenshots`.
+# On demand only: macOS minutes bill at 10x on the private CI mirror (yapper-ci)
+# and this ran on every push. Run it when a design change needs review:
+# gh workflow run Screenshots --ref <branch> (on yapper-ci).
 on:
-  push:
   workflow_dispatch:
 
 concurrency:

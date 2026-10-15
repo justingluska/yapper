@@ -2,9 +2,31 @@ name: Build
 
 # Compiles the app, keyboard and widgets for the simulator and runs the unit
 # tests. Signing and TestFlight happen on Xcode Cloud; this is the quick check.
+# macOS minutes bill at 10x on the private CI mirror (yapper-ci), so it runs only
+# when app code or the project changes, not for docs, README or site edits.
 on:
   push:
+    paths:
+      - "Yapper/**"
+      - "YapperKeyboard/**"
+      - "YapperWidgets/**"
+      - "YapperTests/**"
+      - "Shared/**"
+      - "KeyboardPreview/**"
+      - "project.yml"
+      - "Package.resolved"
+      - ".github/workflows/build.yml"
   pull_request:
+    paths:
+      - "Yapper/**"
+      - "YapperKeyboard/**"
+      - "YapperWidgets/**"
+      - "YapperTests/**"
+      - "Shared/**"
+      - "KeyboardPreview/**"
+      - "project.yml"
+      - "Package.resolved"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +39,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

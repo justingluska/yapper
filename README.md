@@ -206,8 +206,8 @@ Access. The [support page](https://digitalmundo.org/yapper/support/) walks throu
 | `YapperScreenshots/`, `KeyboardScreenshots/`, `KeyboardPreview/` | UI tests that render every screen and keyboard state in CI (never shipped) |
 | `project.yml` | XcodeGen spec for every target. The `.xcodeproj` is generated, not committed |
 
-GitHub Actions builds and tests every push ([Build](.github/workflows/build.yml)) and renders screenshots of every
-screen in light and dark ([Screenshots](.github/workflows/screenshots.yml)). Releases are built with Xcode Cloud.
+GitHub Actions builds and tests every push that changes app code ([Build](.github/workflows/build.yml)) and, on demand,
+renders screenshots of every screen in light and dark ([Screenshots](.github/workflows/screenshots.yml)). Releases are built with Xcode Cloud.
 
 ## Tech
 

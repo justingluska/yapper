@@ -23,8 +23,8 @@ keyboard↔app handoff.
 
 - `project.yml` — XcodeGen spec; the `.xcodeproj`, Info.plists and entitlements are generated, never committed.
 - `Yapper/`, `YapperKeyboard/`, `YapperWidgets/`, `Shared/`, `YapperTests/` — see README.
-- `.github/workflows/build.yml` — simulator compile + unit tests on every push (the quick check; no signing).
-- `.github/workflows/screenshots.yml` — scheme `YapperScreens`: PNGs of the app screens and every keyboard state
+- `.github/workflows/build.yml` — simulator compile + unit tests on pushes that change app code (the quick check; no signing; macOS minutes bill 10x on yapper-ci).
+- `.github/workflows/screenshots.yml` (on demand: `gh workflow run Screenshots --ref <branch> -R justingluska/yapper-ci`) — scheme `YapperScreens`: PNGs of the app screens and every keyboard state
   (via the never-shipped `KeyboardPreview` host app), light and dark. `gh run download <id> -n screenshots`.
   Check these before shipping any UI change, especially when you can't run Xcode yourself.
 - `ci_scripts/ci_post_clone.sh` — Xcode Cloud hook: xcodegen, version from the newest `v*` tag, package resolve.
