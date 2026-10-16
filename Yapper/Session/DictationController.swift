@@ -506,6 +506,28 @@ final class DictationController: ObservableObject {
         return true
     }
 
+    /// The engine, started by `TurnOnEngineIntent` while Yapper stays in the
+    /// background. iOS allows that only with a Live Activity already showing
+    /// (iOS 27 ends the app otherwise), so the activity comes first, and
+    /// without one the engine doesn't start.
+    func turnOnInBackground() throws {
+        guard !isSessionLive else {
+            extendSession()
+            return
+        }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            throw EngineHook.Failure("Turn on Live Activities for Yapper in iOS Settings › Yapper, then try again.")
+        }
+        startActivity()
+        guard activity != nil else {
+            throw EngineHook.Failure(liveActivityProblem ?? "Yapper couldn't show its Live Activity.")
+        }
+        guard startSession() else {
+            endActivity()
+            throw EngineHook.Failure(errorMessage ?? "The microphone couldn't start.")
+        }
+    }
+
     /// With Parakeet only on, a session can't start without a downloaded
     /// model: every dictation would fail.
     private func parakeetOnlyRefusal() -> String? {

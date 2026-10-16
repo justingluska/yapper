@@ -119,7 +119,9 @@ The first time you tap the mic, the keyboard opens the app, which starts listeni
 to the app you were typing in (most popular apps; in the rest, Safari included, swipe right along the bottom edge).
 iOS has no public way for a keyboard to know its host app, so this reads UIKit's private keyboard arbiter, the way
 other dictation keyboards do; it's adapted from [Dictus](https://github.com/getdictus/dictus-ios) (MIT) and can be
-turned off in Settings. The speech engine then stays on for the time you choose (5, 15 or 60 minutes; 15 by
+turned off in Settings. To skip the trip to the app entirely, turn the engine on first with **Turn On Yapper** (a
+Control Center or Lock Screen control, the Action Button, Siri or Shortcuts): it starts listening in the background,
+using iOS's audio-recording intent, and the keyboard then dictates right away. The speech engine then stays on for the time you choose (5, 15 or 60 minutes; 15 by
 default), so every dictation after that happens right in the keyboard, without leaving your app.
 
 ```mermaid

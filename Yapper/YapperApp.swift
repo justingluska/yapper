@@ -11,6 +11,7 @@ struct YapperApp: App {
     init() {
         Transcriber.configure()
         YapperShortcuts.updateAppShortcutParameters()
+        EngineHook.turnOn = { try DictationController.shared.turnOnInBackground() }
         if ProcessInfo.processInfo.arguments.contains("-screenshots") { Self.seedScreenshotData() }
     }
 
@@ -110,6 +111,12 @@ struct YapperShortcuts: AppShortcutsProvider {
             phrases: ["Start dictating with \(.applicationName)", "Yap with \(.applicationName)"],
             shortTitle: "Start Dictating",
             systemImageName: "mic.fill"
+        )
+        AppShortcut(
+            intent: TurnOnEngineIntent(),
+            phrases: ["Turn on \(.applicationName)", "Start \(.applicationName)"],
+            shortTitle: "Turn On Yapper",
+            systemImageName: "waveform"
         )
     }
 }

@@ -8,6 +8,7 @@ struct YapperWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
         StartDictationControl()
+        TurnOnEngineControl()
     }
 }
 
@@ -208,5 +209,19 @@ struct StartDictationControl: ControlWidget {
         }
         .displayName("Start Dictating")
         .description("Opens Yapper and starts listening.")
+    }
+}
+
+/// Turns the speech engine on without opening Yapper, so the keyboard
+/// dictates straight away in whatever app you're in.
+struct TurnOnEngineControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.gluska.yapper.turn-on") {
+            ControlWidgetButton(action: TurnOnEngineIntent()) {
+                Label("Yapper On", systemImage: "waveform")
+            }
+        }
+        .displayName("Turn On Yapper")
+        .description("Turns on the speech engine without leaving your app.")
     }
 }
