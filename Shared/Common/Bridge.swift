@@ -20,6 +20,19 @@ enum Bridge {
     static let appGroup = "group.com.gluska.yapper"
     static let urlScheme = "yapper"
 
+    #if os(macOS)
+    /// The Mac app has no keyboard extension to share with: its settings are
+    /// its own, and History lives in Application Support/Yapper.
+    static let defaults = UserDefaults.standard
+
+    static var containerURL: URL? {
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        else { return nil }
+        let url = base.appendingPathComponent("Yapper", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+    #else
     /// Read ten times a second by the keyboard and on every audio buffer by
     /// the app, so it's created once.
     static let defaults = UserDefaults(suiteName: appGroup) ?? .standard
@@ -27,6 +40,7 @@ enum Bridge {
     static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
     }
+    #endif
 
     /// `yapper://dictate`: opened by the keyboard to start a session.
     static let dictateURL = URL(string: "\(urlScheme)://dictate")!

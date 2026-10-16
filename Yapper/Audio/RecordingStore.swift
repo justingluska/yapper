@@ -8,7 +8,12 @@ import Foundation
 /// never shared with the keyboard and excluded from iCloud backup.
 enum RecordingStore {
     static var directory: URL {
+        #if os(macOS)
+        // Application Support is shared by every app on a Mac.
+        let base = Bridge.containerURL ?? FileManager.default.temporaryDirectory
+        #else
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #endif
         return base.appendingPathComponent("Recordings", isDirectory: true)
     }
 

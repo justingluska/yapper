@@ -39,7 +39,7 @@ enum ModelChoice: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .ultra: return "Optional download. Can be more accurate, but takes a few seconds to load each time Yapper turns on. 25 languages."
         case .v3: return "The previous Parakeet. 25 languages, smaller download."
-        case .apple: return "Recommended. Built into iOS: nothing to download, starts instantly, works offline."
+        case .apple: return "Recommended. Built into \(Device.os): nothing to download, starts instantly, works offline."
         }
     }
 
@@ -78,7 +78,7 @@ actor Transcriber {
 
         var errorDescription: String? {
             switch self {
-            case .noEngine: return "Nothing can transcribe yet. Download the Parakeet model in Settings, or allow Speech Recognition for Yapper in iOS Settings."
+            case .noEngine: return "Nothing can transcribe yet. Download the Parakeet model in Settings, or allow Speech Recognition for Yapper in \(Device.systemSettings)."
             case .tooShort: return "That was too short to hear anything."
             case let .parakeetUnavailable(reason): return "\(reason) Parakeet only is on, so Yapper didn't use Apple's recognizer. Turn it off in Settings to allow that."
             }
@@ -150,7 +150,7 @@ actor Transcriber {
             switch progress.phase {
             case .listing: label = "Starting download"
             case .downloading: label = "Downloading"
-            case .compiling: label = "Optimizing for this iPhone"
+            case .compiling: label = "Optimizing for this \(Device.name)"
             }
             onProgress(progress.fractionCompleted, label)
         }
@@ -255,7 +255,7 @@ actor Transcriber {
     /// on and after each dictation. If it fails, the dictation readies the
     /// model itself and reports any error then.
     func prepareApple() async {
-        guard #available(iOS 26.0, *), preparedApple == nil,
+        guard #available(iOS 26.0, macOS 26.0, *), preparedApple == nil,
               await AppleAnalyzer.state() == .installed,
               let prepared = try? await AppleAnalyzer.prepare(),
               preparedApple == nil
@@ -321,7 +321,7 @@ actor Transcriber {
             await asr.cleanup()
             self.asr = cpu
             onCPU = true
-            cpuReason = "iOS refused the Neural Engine (\(error.localizedDescription)), so Parakeet switched to the CPU."
+            cpuReason = "\(Device.os) refused the Neural Engine (\(error.localizedDescription)), so Parakeet switched to the CPU."
             let text = try await run(cpu, audio)
             return Output(text: text, engine: .parakeetCPU, model: choice.title,
                           processingTime: Date().timeIntervalSince(started), note: cpuReason)
@@ -376,7 +376,7 @@ enum AppleSpeech {
     /// `AppleAnalyzer.Prepared`, when there is one.
     static func transcribe(_ samples: [Float], sampleRate: Double,
                            prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine) {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             if let prepared = prepared as? AppleAnalyzer.Prepared {
                 return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer)
             }
@@ -458,14 +458,14 @@ enum AppleAnalyzer {
 
         var errorDescription: String? {
             switch self {
-            case .unavailable: return "Apple's newer speech model isn't on this iPhone."
+            case .unavailable: return "Apple's newer speech model isn't on this \(Device.name)."
             case .audioFormat: return "Apple's speech model couldn't read this audio."
             }
         }
     }
 
     static func state() async -> State {
-        guard #available(iOS 26.0, *) else { return .unsupported }
+        guard #available(iOS 26.0, macOS 26.0, *) else { return .unsupported }
         guard SpeechTranscriber.isAvailable,
               let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
         else { return .unsupported }
@@ -477,7 +477,7 @@ enum AppleAnalyzer {
     /// Asks iOS to download the model for this iPhone's language. `onProgress`
     /// gets 0...1. The download is Apple's, between iOS and Apple, like the
     /// files for the system's own dictation; no audio is involved.
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     static func install(onProgress: @escaping @Sendable (Double) -> Void) async throws {
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
             throw AnalyzerError.unavailable
@@ -496,13 +496,13 @@ enum AppleAnalyzer {
         onProgress(1)
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     private static func makeTranscriber(_ locale: Locale) -> SpeechTranscriber {
         SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [], attributeOptions: [])
     }
 
     /// An analyzer with its model started, ready for one recording.
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     final class Prepared {
         let transcriber: SpeechTranscriber
         let analyzer: SpeechAnalyzer
@@ -520,7 +520,7 @@ enum AppleAnalyzer {
     /// result. `lingering` keeps the model in memory for a while after the
     /// analyzer is done, so the next dictation's analyzer doesn't start it
     /// again from scratch; iOS frees it when Yapper stops using it.
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     static func prepare() async throws -> Prepared {
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
             throw AnalyzerError.unavailable
@@ -537,7 +537,7 @@ enum AppleAnalyzer {
 
     /// There is no length limit to plan for: SpeechAnalyzer is built for
     /// long audio (Notes and Voice Memos transcribe whole recordings with it).
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     static func transcribe(_ samples: [Float], sampleRate: Double, prepared: Prepared? = nil) async throws -> String {
         let session: Prepared
         if let prepared {
