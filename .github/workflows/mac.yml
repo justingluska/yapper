@@ -2,8 +2,9 @@ name: Mac
 
 # Compiles Yapper for Mac, runs its unit tests, and uploads the app as a zip
 # (ad-hoc signed, not notarized: for trying builds before Developer ID
-# releases exist). Runs only when Mac code or what it shares changes; macOS
-# minutes bill at 10x on the private CI mirror.
+# releases exist). Runs only when Mac code or what it shares changes, and
+# only on the public repo, where macOS minutes are free; on the private CI
+# mirror (yapper-ci) they bill at 10x, so the job is skipped there.
 on:
   push:
     paths:
@@ -36,6 +37,7 @@ permissions:
 
 jobs:
   mac:
+    if: github.repository == 'justingluska/yapper'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
