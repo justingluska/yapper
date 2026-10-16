@@ -1,0 +1,100 @@
+name: Mac
+
+# Compiles Yapper for Mac, runs its unit tests, and uploads the app as a zip
+# (ad-hoc signed, not notarized: for trying builds before Developer ID
+# releases exist). Runs only when Mac code or what it shares changes; macOS
+# minutes bill at 10x on the private CI mirror.
+on:
+  push:
+    paths:
+      - "YapperMac/**"
+      - "YapperMacTests/**"
+      - "Shared/Common/**"
+      - "Shared/Fonts/**"
+      - "Yapper/Audio/**"
+      - "project.yml"
+      - "Package.resolved"
+      - ".github/workflows/mac.yml"
+  pull_request:
+    paths:
+      - "YapperMac/**"
+      - "YapperMacTests/**"
+      - "Shared/Common/**"
+      - "Shared/Fonts/**"
+      - "Yapper/Audio/**"
+      - "project.yml"
+      - "Package.resolved"
+      - ".github/workflows/mac.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+
+      - name: Resolve packages
+        run: |
+          RESOLVED="Yapper.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          mkdir -p "$(dirname "$RESOLVED")"
+          cp Package.resolved "$RESOLVED"
+          xcodebuild -resolvePackageDependencies -project Yapper.xcodeproj -scheme YapperMac
+
+      - name: Test
+        run: |
+          status=0
+          xcodebuild test \
+            -project Yapper.xcodeproj -scheme YapperMac -destination "platform=macOS" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= > test.log 2>&1 || status=$?
+          grep -E "error:|warning: .*/(YapperMac|Shared|Yapper/Audio)/|Test Case .*(passed|failed)|Executed|\*\* " test.log | head -300
+          exit $status
+
+      - name: Build app
+        run: |
+          status=0
+          xcodebuild build \
+            -project Yapper.xcodeproj -scheme YapperMac -configuration Release \
+            -destination "generic/platform=macOS" -derivedDataPath build \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= > build.log 2>&1 || status=$?
+          grep -E "error:|warning: .*/(YapperMac|Shared|Yapper/Audio)/|\*\* " build.log | head -200
+          [ $status -eq 0 ] || exit $status
+          APP=build/Build/Products/Release/Yapper.app
+          codesign -dv --entitlements - "$APP" 2>&1 | head -20
+          ditto -c -k --keepParent "$APP" Yapper-mac.zip
+
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yapper-mac
+          path: Yapper-mac.zip
+          if-no-files-found: ignore
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-logs
+          path: |
+            test.log
+            build.log
+          if-no-files-found: ignore

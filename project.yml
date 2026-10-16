@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.gluska
   deploymentTarget:
     iOS: "18.0"
+    macOS: "14.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 settings:
@@ -40,6 +41,17 @@ schemes:
         - name: YapperTests
   # Screenshots of the app and the keyboard layout, for design review without a
   # phone. GitHub's Screenshots workflow runs it; Xcode Cloud never does.
+  # The Mac app: menu bar, hold-to-talk in any app.
+  YapperMac:
+    build:
+      targets:
+        YapperMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: YapperMacTests
   YapperScreens:
     build:
       targets:
@@ -249,3 +261,66 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.keyboardscreenshots
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: KeyboardPreview
+
+  # Yapper for Mac: a menu bar app. Hold the dictation key in any app, talk,
+  # let go; the text is pasted where the cursor is. Shares the engine, the
+  # cleanup and History with the iPhone app. Distributed outside the App
+  # Store (Developer ID): watching the key and pasting into other apps need
+  # Accessibility, which the App Store sandbox doesn't allow for this.
+  YapperMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: YapperMac
+      - path: Shared/Common
+      - path: Shared/Fonts
+        buildPhase: resources
+      - path: Yapper/Audio/Transcriber.swift
+      - path: Yapper/Audio/AudioChunks.swift
+      - path: Yapper/Audio/RecordingEncoder.swift
+      - path: Yapper/Audio/RecordingStore.swift
+      - path: Yapper/Licenses
+        buildPhase: resources
+    dependencies:
+      - package: FluidAudio
+        product: FluidAudio
+    entitlements:
+      path: YapperMac/YapperMac.entitlements
+      properties:
+        # Hardened runtime: the microphone must be declared.
+        com.apple.security.device.audio-input: true
+    info:
+      path: YapperMac/Info.plist
+      properties:
+        CFBundleDisplayName: Yapper
+        CFBundleName: Yapper
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.productivity
+        # Menu bar only; the window adds a Dock icon while it's open.
+        LSUIElement: true
+        NSHumanReadableCopyright: Free and open source.
+        NSMicrophoneUsageDescription: Yapper listens while you hold the dictation key and turns your voice into text on this Mac. Audio never leaves it.
+        NSSpeechRecognitionUsageDescription: When you choose Apple's model, Yapper transcribes with Apple's speech recognition, forced to run on this Mac. Nothing is sent to Apple.
+        ATSApplicationFontsPath: .
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.mac
+        PRODUCT_NAME: Yapper
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+
+  YapperMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: YapperMacTests
+      - path: YapperMac/Input/TalkGesture.swift
+      - path: YapperMac/Input/TriggerKey.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gluska.yapper.mac.tests
+        GENERATE_INFOPLIST_FILE: YES

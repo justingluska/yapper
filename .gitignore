@@ -17,5 +17,7 @@ KeyboardPreview/Info.plist
 Yapper/Yapper.entitlements
 YapperKeyboard/YapperKeyboard.entitlements
 YapperWidgets/YapperWidgets.entitlements
+YapperMac/Info.plist
+YapperMac/YapperMac.entitlements
 # Local agent worktrees and settings
 .claude/
