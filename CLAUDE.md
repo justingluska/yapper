@@ -32,7 +32,9 @@ keyboard↔app handoff.
 ## Rules
 
 - The keyboard never links FluidAudio or anything heavy (extension memory limit ~50 MB).
-- No private API (no host-app auto-return hacks) unless Justin decides otherwise.
+- No private API, with one exception Justin chose (2026-10-16): auto-return to the host app
+  (`YapperKeyboard/HostArbiter.m`, `HostApp.swift`, `Yapper/Session/ReturnLinks.swift`). It must stay guarded:
+  looked up by name, nil means the swipe-back screen, never a guessed app.
 - No network code outside the explicit model download. `ModelHub.offlineMode` stays true otherwise.
 - The look is Yapper's own style (`Shared/Common/Theme.swift`): flat surfaces, hairline borders, Inter.
 

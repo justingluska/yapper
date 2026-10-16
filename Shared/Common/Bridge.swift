@@ -170,21 +170,32 @@ enum Bridge {
         case shortcut
     }
 
+    struct StartRequest {
+        let source: StartSource
+        /// The bundle ID of the app the keyboard was typing into, when the
+        /// keyboard knows it: Yapper sends the user back there once it's
+        /// listening.
+        let returnTo: String?
+    }
+
     /// Written just before the app is opened, so it starts recording straight
     /// away instead of showing its home screen. Expires after 30 seconds so a
     /// stale request never turns the mic on later.
-    static func requestStart(from source: StartSource) {
+    static func requestStart(from source: StartSource, returnTo host: String? = nil) {
         defaults.set(source.rawValue, forKey: Key.pendingStart)
         defaults.set(Date().timeIntervalSince1970, forKey: Key.pendingStart + ".at")
+        defaults.set(host, forKey: Key.pendingStart + ".host")
     }
 
     /// Returns and clears the pending request, if it is fresh.
-    static func takeStartRequest() -> StartSource? {
+    static func takeStartRequest() -> StartRequest? {
         let raw = defaults.string(forKey: Key.pendingStart)
         let at = defaults.double(forKey: Key.pendingStart + ".at")
+        let host = defaults.string(forKey: Key.pendingStart + ".host")
         defaults.removeObject(forKey: Key.pendingStart)
-        guard let raw, Date().timeIntervalSince1970 - at < 30 else { return nil }
-        return StartSource(rawValue: raw)
+        defaults.removeObject(forKey: Key.pendingStart + ".host")
+        guard let raw, Date().timeIntervalSince1970 - at < 30, let source = StartSource(rawValue: raw) else { return nil }
+        return StartRequest(source: source, returnTo: host)
     }
 
     // MARK: Results

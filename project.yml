@@ -181,6 +181,7 @@ targets:
     platform: iOS
     sources:
       - path: YapperTests
+      - path: Yapper/Session/ReturnLinks.swift
       - path: Shared/Common/TextProcessor.swift
       - path: Shared/Common/LoadTimings.swift
       - path: Shared/Common/Retention.swift

@@ -78,6 +78,9 @@ final class DictationController: ObservableObject {
     /// Resumes a dictation that's waiting for the model, early when the user
     /// chooses not to wait.
     private var modelWait: CheckedContinuation<Void, Never>?
+    /// Waits for Yapper to become active, to send the user back to the app
+    /// they were typing in.
+    private var returnObserver: NSObjectProtocol?
     /// Dictations still being transcribed. The model stays in memory until
     /// they're done, even if the engine turned off meanwhile (a phone call).
     private var transcriptionsInFlight = 0
@@ -440,9 +443,38 @@ final class DictationController: ObservableObject {
     /// becomes active, and when an intent runs in-process. Anything else
     /// that opens the URL only brings Yapper to the front.
     func handleStartRequest() {
-        guard let source = Bridge.takeStartRequest() else { return }
+        guard let request = Bridge.takeStartRequest() else { return }
         guard startSession() else { return }
-        beginRecording(source: source == .keyboard ? .keyboard : .app)
+        beginRecording(source: request.source == .keyboard ? .keyboard : .app)
+        if request.source == .keyboard, let host = request.returnTo {
+            returnToHost(host)
+        }
+    }
+
+    /// Sends the user back to the app they were typing in once recording is
+    /// live, so they can just talk. Only apps with a link that resumes them
+    /// (`ReturnLinks`); anything else keeps the swipe-back screen.
+    private func returnToHost(_ host: String) {
+        guard Settings.returnToApp, phase == .recording, host != Bundle.main.bundleIdentifier,
+              let url = ReturnLinks.url(for: host) else { return }
+        // Opening another app before Yapper is active doesn't take; wait
+        // for it when the request arrived during launch.
+        if UIApplication.shared.applicationState == .active {
+            UIApplication.shared.open(url)
+            return
+        }
+        if let returnObserver { NotificationCenter.default.removeObserver(returnObserver) }
+        returnObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let observer = self.returnObserver { NotificationCenter.default.removeObserver(observer) }
+                self.returnObserver = nil
+                guard self.phase == .recording else { return }
+                UIApplication.shared.open(url)
+            }
+        }
     }
 
     /// Warms the microphone and marks the session live. Returns false and

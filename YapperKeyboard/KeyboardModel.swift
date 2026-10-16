@@ -234,7 +234,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func openAppToDictate() {
-        Bridge.requestStart(from: .keyboard)
+        Bridge.requestStart(from: .keyboard, returnTo: controller.flatMap(HostApp.current(for:)))
         controller?.openApp(Bridge.dictateURL)
     }
 

@@ -19,6 +19,7 @@ enum Settings {
         static let loadedModels = "settings.loadedModels"
         static let appleWhileLoading = "settings.appleWhileLoading"
         static let loadTimings = "settings.loadTimings"
+        static let returnToApp = "settings.returnToApp"
     }
 
     private static var defaults: UserDefaults { Bridge.defaults }
@@ -45,6 +46,13 @@ enum Settings {
     static var removeRepeats: Bool {
         get { defaults.object(forKey: Key.removeRepeats) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.removeRepeats) }
+    }
+
+    /// After the keyboard opens Yapper to start listening, go straight back
+    /// to the app the user was typing in.
+    static var returnToApp: Bool {
+        get { defaults.object(forKey: Key.returnToApp) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.returnToApp) }
     }
 
     static var haptics: Bool {

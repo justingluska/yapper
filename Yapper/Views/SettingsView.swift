@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var removeFillers = Settings.removeFillers
     @State private var removeRepeats = Settings.removeRepeats
     @State private var haptics = Settings.haptics
+    @State private var returnToApp = Settings.returnToApp
     @State private var historyDays = Settings.historyDays
     @State private var copyEveryDictation = Settings.copyEveryDictation
     @State private var recordingHours = Settings.recordingHours
@@ -45,6 +46,8 @@ struct SettingsView: View {
                     }
                 }
                 .onChange(of: sessionMinutes) { _, value in Settings.sessionMinutes = value }
+                Toggle("Go back to your app", isOn: $returnToApp)
+                    .onChange(of: returnToApp) { _, value in Settings.returnToApp = value }
                 NavigationLink("How it works") {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -65,6 +68,7 @@ struct SettingsView: View {
                         Text(problem).foregroundStyle(Theme.errorFg)
                     }
                     Text("While the engine is on, the keyboard dictates without opening Yapper, and the Dynamic Island shows it in blue (red while listening). iOS also shows its orange mic dot the whole time; apps can't change that one.")
+                    Text("Go back to your app: when the keyboard opens Yapper to start the engine, Yapper returns you to the app you were typing in as soon as it's listening. Works with most popular apps; in others (Safari included), swipe back yourself.")
                 }
                 .padding(.top, 4)
             }
@@ -425,6 +429,7 @@ struct LicensesView: View {
                       "NVIDIA Corporation. Licensed under CC BY 4.0 (creativecommons.org/licenses/by/4.0). Core ML conversion by FluidInference. Yapper runs the model unmodified.")
                 entry("FluidAudio", "Copyright FluidInference. Apache License 2.0.", file: "Apache-2.0")
                 entry("NeMo text processing", "Bundled with FluidAudio. Apache License 2.0.", file: "Apache-2.0")
+                entry("Dictus", "Going back to your app is adapted from Dictus. Copyright PIVI Solutions. MIT License.", file: "Dictus-MIT")
                 entry("Inter typeface", "Copyright The Inter Project Authors. SIL Open Font License 1.1.", file: "Inter-LICENSE")
                 entry("Yapper", "Copyright Justin Gluska. MIT License.")
             }

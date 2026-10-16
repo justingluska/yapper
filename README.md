@@ -115,8 +115,11 @@ iOS doesn't let keyboards use the microphone, so Yapper has two halves:
    [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine.
 2. **The Yapper keyboard** is a remote control and a text inserter. It never touches audio and has no network code.
 
-The first time you tap the mic, the keyboard opens the app, which starts listening straight away. Swipe right along
-the bottom edge to go back. The speech engine then stays on for the time you choose (5, 15 or 60 minutes; 15 by
+The first time you tap the mic, the keyboard opens the app, which starts listening straight away and sends you back
+to the app you were typing in (most popular apps; in the rest, Safari included, swipe right along the bottom edge).
+iOS has no public way for a keyboard to know its host app, so this reads UIKit's private keyboard arbiter, the way
+other dictation keyboards do; it's adapted from [Dictus](https://github.com/getdictus/dictus-ios) (MIT) and can be
+turned off in Settings. The speech engine then stays on for the time you choose (5, 15 or 60 minutes; 15 by
 default), so every dictation after that happens right in the keyboard, without leaving your app.
 
 ```mermaid
