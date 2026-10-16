@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 
 // Yapper's style: flat surfaces, hairline borders instead of gray fills, translucent black/white
 // fills for interactive states, two radii (12 for controls, 24 for cards) and Inter.
@@ -95,6 +99,18 @@ enum Theme {
     }
 
     private static func dynamic(light: (UInt32, CGFloat), dark: (UInt32, CGFloat)) -> Color {
+        #if os(macOS)
+        Color(NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            let (hex, alpha) = isDark ? dark : light
+            return NSColor(
+                srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: alpha
+            )
+        })
+        #else
         Color(UIColor { traits in
             let (hex, alpha) = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(
@@ -104,6 +120,7 @@ enum Theme {
                 alpha: alpha
             )
         })
+        #endif
     }
 }
 
