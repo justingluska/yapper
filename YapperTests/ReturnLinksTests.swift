@@ -16,6 +16,12 @@ final class ReturnLinksTests: XCTestCase {
         XCTAssertEqual(ReturnLinks.url(for: "com.apple.MobileSMS")?.absoluteString, "ichat://")
     }
 
+    func testAppsWhoseLinkActsHaveNoLink() {
+        // termius:// opens the new-host form; claude:// can start a new chat.
+        XCTAssertNil(ReturnLinks.url(for: "com.crystalnix.ServerAuditor"))
+        XCTAssertNil(ReturnLinks.url(for: "com.anthropic.claude"))
+    }
+
     func testSafariAndUnknownAppsHaveNoLink() {
         XCTAssertNil(ReturnLinks.url(for: "com.apple.mobilesafari"))
         XCTAssertNil(ReturnLinks.url(for: "com.example.unknown"))

@@ -2,91 +2,34 @@ import Foundation
 
 /// The way back into the app the keyboard was typing in, by bundle ID. A link
 /// only belongs here if opening it brings the app back where the user was,
-/// not to its home screen or a new compose sheet. Apps not listed (Safari,
-/// whose links open a blank tab) get the swipe-back screen instead.
-/// From the Dictus catalogue (MIT, github.com/getdictus/dictus-ios), where
-/// `ichat://` for Messages, `message://` for Mail, `claude://`, ChatGPT,
-/// WhatsApp, Slack and GitHub were checked on a device.
+/// not to its home screen, a new compose sheet, or an action: a bare
+/// `scheme://` is a deep link, and each app decides what it means (`termius://`
+/// opens Termius's new-host form; `claude://` may start a new chat). So only
+/// links someone has checked on a device go here. Every other app, Safari
+/// included, gets the swipe-back screen.
+///
+/// From the Dictus and VivaDicta catalogues (MIT, github.com/getdictus/dictus-ios,
+/// github.com/n0an/VivaDicta), keeping the entries their audits checked.
+/// To add one: leave the app mid-draft, open the link from Safari, and see
+/// where it lands.
 enum ReturnLinks {
     static let byBundleID: [String: String] = [
+        // Checked on a device.
         "com.apple.mobilenotes": "mobilenotes://",
         "com.apple.MobileSMS": "ichat://",
         "com.apple.mobilemail": "message://",
-        "com.apple.Pages": "pages://",
-        "com.apple.Numbers": "numbers://",
-        "com.apple.Keynote": "keynote://",
-        "com.apple.reminders": "x-apple-reminderkit://",
         "net.whatsapp.WhatsApp": "whatsapp-consumer://",
-        "net.whatsapp.WhatsAppSMB": "whatsapp://",
+        "com.tinyspeck.chatlyio": "slack://open",
+        "com.github.stormbreaker.prod": "github://",
+        "com.openai.chat": "com.openai.chat://",
+        "com.t3tools.t3code": "t3code://",
+        // Checked in the simulator.
+        "com.apple.reminders": "x-apple-reminderkit://",
+        // Read in the app's source: a bare link matches no route and only
+        // brings the app to the front.
         "com.telegram.telegram-ios": "tg://",
         "ph.telegra.Telegraph": "tg://",
-        "app.swiftgram.ios": "sg://",
-        "com.tinyspeck.chatlyio": "slack://open",
-        "com.codality.NotationalFlow": "simplenote://",
-        "com.microsoft.Office.Word": "ms-word://",
-        "com.microsoft.Office.Outlook": "ms-outlook://",
-        "com.microsoft.skype.teams": "msteams://",
-        "com.culturedcode.ThingsiPhone": "things://",
-        "com.google.Gmail": "googlegmail://",
-        "com.google.chrome.ios": "googlechrome://",
-        "com.google.Translate": "googletranslate://",
-        "com.google.OPA": "google://",
-        "com.google.GoogleMobile": "googlemobileapp://",
-        "com.google.gemini": "gemini-app://",
-        "com.facebook.Facebook": "fb://",
-        "com.facebook.Messenger": "fb-messenger://",
-        "com.atebits.Tweetie2": "twitter://",
-        "com.toyopagroup.picaboo": "snapchat://",
-        "com.burbn.instagram": "instagram://",
-        "com.burbn.barcelona": "barcelona://",
-        "com.viber": "viber://",
-        "com.spotify.client": "spotify://",
-        "com.spotify.client.L32G8C83V9": "spotify://",
-        "com.getdropbox.Dropbox": "dbapi-1://",
-        "com.linkedin.LinkedIn": "linkedin://",
-        "com.openai.chat": "com.openai.chat://",
-        "ai.perplexity.app": "perplexity-app://",
-        "com.anthropic.claude": "claude://",
-        "com.t3tools.t3code": "t3code://",
-        "ai.x.GrokApp": "grok://",
-        "md.obsidian": "obsidian://",
-        "im.monica.app.monica": "monica://",
-        "com.mem-labs.mem": "mem://",
-        "com.cardify.tinder": "tinder://",
-        "com.readdle.smartemail": "readdle-spark://",
-        "com.hammerandchisel.discord": "discord://",
         "org.whispersystems.signal": "sgnl://",
-        "co.fluder.mobile.FSNotes-iOS": "fsnotes://",
-        "ch.threema.iapp": "threema://",
-        "com.briansunter.logseq-dev": "logseq://",
-        "com.github.stormbreaker.prod": "github://",
-        "com.appliedphasor.secure-shellfish": "shellfish://",
-        "com.crystalnix.ServerAuditor": "termius://",
-        "com.reddit.Reddit": "reddit://",
-        "pro.writer": "ia-writer://",
-        "ru.yandex.mobile.translate": "yandextranslate://",
-        "com.openminis.app": "minis://",
-        "com.tencent.xin": "weixin://",
-        "com.letterboxd.LetterboxdApp": "letterboxd://",
-        "eusoft.eudic.ip": "eudic://",
-        "com.ex3ndr.happy": "happy://",
-        "psyche.kelivo": "kelivo://",
-        "com.agiletortoise.Drafts5": "drafts://",
-        "com.ubercab.UberClient": "uber://",
-        "notion.id": "notion://",
-        "com.meituan.imeituan": "imeituan://",
-        "com.newin.nplayer.basic": "nplayer-http://",
-        "com.evernote.iPhone.Evernote": "evernote://",
-        "jp.naver.line": "line://",
-        "com.google.ios.youtube": "youtube://",
-        "com.ebay.iphone": "ebay://",
-        "com.google.Docs": "googledocs://",
-        "com.taobao.taobao4iphone": "taobao://",
-        "company.thebrowser.ArcMobile2": "arcmobile2://",
-        "com.alibaba.sourcing": "enalibaba://",
-        "com.automattic.beeper": "beeper://",
-        "com.xiaojukeji.didi": "diditaxi://",
-        "com.vk.vkme": "vkme://",
     ]
 
     static func url(for bundleID: String) -> URL? {

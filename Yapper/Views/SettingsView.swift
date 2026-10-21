@@ -68,7 +68,7 @@ struct SettingsView: View {
                         Text(problem).foregroundStyle(Theme.errorFg)
                     }
                     Text("While the engine is on, the keyboard dictates without opening Yapper, and the Dynamic Island shows it in blue (red while listening). iOS also shows its orange mic dot the whole time; apps can't change that one.")
-                    Text("Go back to your app: when the keyboard opens Yapper to start the engine, Yapper returns you to the app you were typing in as soon as it's listening. Works with most popular apps; in others (Safari included), swipe back yourself.")
+                    Text("Go back to your app: when the keyboard opens Yapper to start the engine, Yapper returns you to the app you were typing in as soon as it's listening. Works in apps where this is known to land you back where you were, like Notes, Messages, Mail, WhatsApp, Slack and ChatGPT; in others (Safari included), swipe back yourself.")
                 }
                 .padding(.top, 4)
             }
