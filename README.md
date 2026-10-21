@@ -116,11 +116,11 @@ iOS doesn't let keyboards use the microphone, so Yapper has two halves:
 2. **The Yapper keyboard** is a remote control and a text inserter. It never touches audio and has no network code.
 
 The first time you tap the mic, the keyboard opens the app, which starts listening straight away and sends you back
-to the app you were typing in (Notes, Messages, Mail, Reminders, WhatsApp, Slack, ChatGPT, GitHub, Telegram, Signal and
-T3 Code; in the rest, Safari included, swipe right along the bottom edge). It goes back by opening the app's link, and
-only links checked to resume the app are used, since in many apps a bare link opens a new screen instead.
-iOS has no public way for a keyboard to know its host app, so this reads UIKit's private keyboard arbiter, the way
-other dictation keyboards do; it's adapted from [Dictus](https://github.com/getdictus/dictus-ios) (MIT) and can be
+to the app you were typing in, just as you left it. iOS has no public way to do this: Yapper brings the app to the
+front by its ID with LaunchServices' private `LSApplicationWorkspace`, and if iOS refuses, opens the app's link for
+the few apps where that's checked to resume it (Notes, Messages, Mail, WhatsApp, Slack, ChatGPT and others); in the
+rest, swipe right along the bottom edge. Nor can a keyboard publicly know which app it's typing in, so Yapper reads
+UIKit's private keyboard arbiter, the way other dictation keyboards do; it's adapted from [Dictus](https://github.com/getdictus/dictus-ios) (MIT) and can be
 turned off in Settings. To skip the trip to the app entirely, turn the engine on first with **Turn On Yapper** (a
 Control Center or Lock Screen control, the Action Button, Siri or Shortcuts): it starts listening in the background,
 using iOS's audio-recording intent, and the keyboard then dictates right away. The speech engine then stays on for the time you choose (5, 15 or 60 minutes; 15 by
@@ -234,8 +234,8 @@ renders screenshots of every screen in light and dark ([Screenshots](.github/wor
 <summary><b>Why does the keyboard open the Yapper app?</b></summary>
 
 iOS doesn't let keyboards use the microphone, so the app does the listening. It only has to open once per session:
-after that the engine stays on for the time you picked, and the keyboard dictates in place. In the apps listed above
-Yapper sends you back by itself; in the rest, swipe right along the bottom edge.
+after that the engine stays on for the time you picked, and the keyboard dictates in place. Yapper then sends you back
+to your app by itself; if it can't, swipe right along the bottom edge.
 </details>
 
 <details>

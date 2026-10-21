@@ -452,15 +452,15 @@ final class DictationController: ObservableObject {
     }
 
     /// Sends the user back to the app they were typing in once recording is
-    /// live, so they can just talk. Only apps with a link that resumes them
-    /// (`ReturnLinks`); anything else keeps the swipe-back screen.
+    /// live, so they can just talk. Brings the app to the front by bundle ID
+    /// (`HostLauncher`); if that's refused, opens a link checked to resume it
+    /// (`ReturnLinks`); otherwise the swipe-back screen stays.
     private func returnToHost(_ host: String) {
-        guard Settings.returnToApp, phase == .recording, host != Bundle.main.bundleIdentifier,
-              let url = ReturnLinks.url(for: host) else { return }
+        guard Settings.returnToApp, phase == .recording, host != Bundle.main.bundleIdentifier else { return }
         // Opening another app before Yapper is active doesn't take; wait
         // for it when the request arrived during launch.
         if UIApplication.shared.applicationState == .active {
-            UIApplication.shared.open(url)
+            goBack(to: host)
             return
         }
         if let returnObserver { NotificationCenter.default.removeObserver(returnObserver) }
@@ -472,8 +472,16 @@ final class DictationController: ObservableObject {
                 if let observer = self.returnObserver { NotificationCenter.default.removeObserver(observer) }
                 self.returnObserver = nil
                 guard self.phase == .recording else { return }
-                UIApplication.shared.open(url)
+                self.goBack(to: host)
             }
+        }
+    }
+
+    private func goBack(to host: String) {
+        let link = ReturnLinks.url(for: host)
+        Task.detached {
+            guard !HostLauncher.open(host), let link else { return }
+            _ = await UIApplication.shared.open(link)
         }
     }
 
