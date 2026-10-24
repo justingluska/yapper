@@ -47,6 +47,20 @@ extension View {
 }
 
 /// Plain-words explanation of the session, and why it exists.
+/// Settings › How it works, also linked from Home's help.
+struct HowItWorksPage: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PageTitle(title: "How the speech engine works")
+                HowItWorks()
+            }
+            .padding(20)
+        }
+        .background(Theme.background)
+    }
+}
+
 struct HowItWorks: View {
     private var parakeet: Bool { ModelChoice.current.isParakeet }
 

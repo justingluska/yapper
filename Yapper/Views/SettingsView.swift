@@ -48,16 +48,7 @@ struct SettingsView: View {
                 .onChange(of: sessionMinutes) { _, value in Settings.sessionMinutes = value }
                 Toggle("Go back to your app", isOn: $returnToApp)
                     .onChange(of: returnToApp) { _, value in Settings.returnToApp = value }
-                NavigationLink("How it works") {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            PageTitle(title: "How the speech engine works")
-                            HowItWorks()
-                        }
-                        .padding(20)
-                    }
-                    .background(Theme.background)
-                }
+                NavigationLink("How it works") { HowItWorksPage() }
             } header: {
                 SectionLabel(text: "Speech engine")
                     .padding(.top, 8)
