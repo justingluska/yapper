@@ -217,6 +217,9 @@ targets:
       - path: YapperKeyboard/KeyGrid.swift
       - path: YapperKeyboard/KeyboardModel.swift
       - path: YapperKeyboard/KeyboardViewController.swift
+      # The controller asks it for the host app; in the preview there is
+      # none, so it answers nil. HostArbiter.m stays out: nothing to switch on.
+      - path: YapperKeyboard/HostApp.swift
       - path: Shared/Common
       - path: Shared/Fonts
         buildPhase: resources
