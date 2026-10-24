@@ -43,3 +43,9 @@ keyboard↔app handoff.
 
 - Releases go through Xcode Cloud → TestFlight: every push to `main` tests and archives; the version comes from the
   newest `v*` tag (`ci_scripts/ci_post_clone.sh`).
+- Once a version is approved its train closes: tag the next `v*` (e.g. `v1.0.1`) before the next build, or the
+  upload fails with ITMS-90186/90062. Xcode Cloud stopped seeing GitHub pushes after 2026-10-16 (it still built the
+  Oct 16 commit on 2026-10-24); check that the Xcode Cloud GitHub app still has access to this repo.
+- Local App Store uploads: the only Apple Distribution key is in the `forge-dist` keychain, not login, so signing
+  asks for that keychain's password (not the Mac password). The password noted in forge-ios's CLAUDE.md didn't work
+  on 2026-10-24.
