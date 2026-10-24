@@ -9,7 +9,7 @@ struct GoodToKnowList: View {
 
     private static let points: [(String, String)] = [
         ("Yapper opens once per session",
-         "iOS never lets a keyboard use the microphone, so the first dictation opens the Yapper app to start listening. Swipe back, and it stays on for the time you pick (5, 15 or 60 minutes)."),
+         "iOS never lets a keyboard use the microphone, so the first dictation opens the Yapper app to start listening. It takes you back to your app by itself (if it can't, swipe right along the bottom edge), and the mic stays ready for the time you pick (5, 15 or 60 minutes)."),
         ("The orange dot and battery",
          "While the engine is on, iOS shows its orange mic dot and the mic stays ready, which uses a little more battery. Turn it off any time from the app, the keyboard or the Dynamic Island."),
         ("It can mishear",
