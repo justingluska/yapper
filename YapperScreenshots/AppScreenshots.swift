@@ -212,27 +212,36 @@ final class AppScreenshots: XCTestCase {
         }
     }
 
-    /// The App Store set, light: Home on, its help, History, stats and
-    /// Dictionary, with the keyboard set up. The keyboard and onboarding
-    /// shots come from KeyboardScreenshots and testOnboarding.
+    /// The App Store set, light and dark: Home on, its help, History,
+    /// stats and Cleanup, with the keyboard set up. The keyboard and
+    /// onboarding shots come from KeyboardScreenshots and testOnboarding.
     func testAppStore() {
-        let app = XCUIApplication()
-        app.launchArguments = ["-screenshots", "-sampleHistory", "-homeState", "on", "-keyboardAdded"]
-        app.launch()
-        attach(app, name: "appstore-home-on")
-        app.buttons["home.help"].firstMatch.tap()
-        Thread.sleep(forTimeInterval: 0.5)
-        attach(app, name: "appstore-home-help")
-        app.navigationBars.buttons["Done"].firstMatch.tap()
-        Thread.sleep(forTimeInterval: 0.5)
+        for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            let app = XCUIApplication()
+            app.launchArguments = ["-screenshots", "-sampleHistory", "-homeState", "on", "-keyboardAdded"] + (dark ? ["-dark"] : [])
+            app.launch()
+            attach(app, name: "appstore-home-on-\(suffix)")
+            app.buttons["home.help"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 0.5)
+            attach(app, name: "appstore-home-help-\(suffix)")
+            app.navigationBars.buttons["Done"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 0.5)
 
-        app.tabBars.buttons["History"].tap()
-        attach(app, name: "appstore-history")
-        app.tabBars.buttons["Settings"].tap()
-        attach(app, name: "appstore-stats")
-        app.tabBars.buttons["Dictionary"].tap()
-        attach(app, name: "appstore-dictionary")
-        app.terminate()
+            app.tabBars.buttons["History"].tap()
+            attach(app, name: "appstore-history-\(suffix)")
+            app.tabBars.buttons["Settings"].tap()
+            attach(app, name: "appstore-stats-\(suffix)")
+            let cleanup = app.switches["Remove stutters (\"I I think\")"].firstMatch
+            scroll(app, to: cleanup)
+            // Bring Cleanup up to the top third, with History under it.
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let from = origin.withOffset(CGVector(dx: app.frame.midX, dy: cleanup.frame.minY))
+            from.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: app.frame.midX, dy: 300)),
+                       withVelocity: .slow, thenHoldForDuration: 0.5)
+            attach(app, name: "appstore-settings-cleanup-\(suffix)")
+            app.terminate()
+        }
     }
 
     /// Every onboarding step, light and dark.
