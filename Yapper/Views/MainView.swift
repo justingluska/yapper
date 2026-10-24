@@ -15,84 +15,190 @@ struct MainView: View {
     }
 }
 
+/// Home: one big power button for the speech engine, what it's doing in a
+/// word, and nothing else. Everything else lives in Settings.
 struct HomeView: View {
     @EnvironmentObject private var controller: DictationController
-    @State private var tryText = ""
-    @State private var records = HistoryStore.load()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var keyboardEnabled = KeyboardStatus.isEnabled
-    @FocusState private var tryFocused: Bool
+    @State private var firstLoadNote = false
+    @State private var showSetup = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 14) {
-                    Image("Logo")
-                        .resizable()
-                        .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .accessibilityHidden(true)
-                    PageTitle(title: "Yapper", subtitle: "Free, private dictation. Nothing leaves your iPhone.")
-                }
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                dictateButton
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
 
-                if !keyboardEnabled {
-                    Card {
-                        Text("Add the Yapper keyboard to dictate into any app: Settings, Keyboards, then turn on Yapper and Allow Full Access.")
-                            .font(Theme.font(15))
-                            .foregroundStyle(Theme.text)
-                        Button("Open Settings") { KeyboardStatus.openSettings() }
-                            .buttonStyle(SecondaryButtonStyle())
-                    }
-                }
+            Spacer(minLength: 24)
 
-                SpeechEngineCard()
-
-                Card {
-                    HStack {
-                        SectionLabel(text: "Try it")
-                        if tryFocused {
-                            Button("Done") { tryFocused = false }
-                                .font(Theme.font(14, .semibold))
-                                .foregroundStyle(Theme.textEmphasis)
-                        }
-                    }
-                    TextField("Tap here, switch to the Yapper keyboard, and tap it", text: $tryText, axis: .vertical)
-                        .font(Theme.font(16))
-                        .lineLimit(3...8)
-                        .focused($tryFocused)
-                        .padding(12)
-                        .background(RoundedRectangle(cornerRadius: Theme.controlRadius).fill(Theme.fillInput))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius).strokeBorder(Theme.borderInput))
-                    if !tryText.isEmpty {
-                        Button("Clear") { tryText = "" }
-                            .font(Theme.font(14, .medium))
-                            .foregroundStyle(Theme.textMuted)
-                    }
-                }
-
-                if !records.isEmpty {
-                    Text("\(records.filter { !$0.failed }.count) dictations, \(wordCount) words so far")
-                        .font(Theme.font(13))
-                        .foregroundStyle(Theme.textFaint)
-                        .frame(maxWidth: .infinity, alignment: .center)
+            TimelineView(.animation(minimumInterval: 0.25, paused: controller.modelState != .loading)) { context in
+                let status = status(at: context.date)
+                VStack(spacing: 44) {
+                    PowerButton(look: status.look, progress: status.progress, action: toggle)
+                        .accessibilityLabel("Yapper")
+                        .accessibilityValue(status.spoken)
+                        .accessibilityHint(controller.isSessionLive ? "Turns the speech engine off" : "Turns the speech engine on")
+                        .accessibilityIdentifier("home.power")
+                    labels(status)
                 }
             }
-            .padding(20)
+
+            Spacer(minLength: 24)
+
+            if !keyboardEnabled {
+                Button { showSetup = true } label: {
+                    HStack(spacing: 4) {
+                        Text("Finish setup: add the Yapper keyboard")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .font(Theme.font(14, .medium))
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(minHeight: Theme.controlHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 12)
+            }
         }
-        // A dictation keyboard has no dismiss key, so dragging the page (or
-        // Done) puts it away.
-        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: .infinity)
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            records = HistoryStore.load()
-            keyboardEnabled = KeyboardStatus.isEnabled
+        .firstLoadNote(isPresented: $firstLoadNote)
+        .sheet(isPresented: $showSetup, onDismiss: { keyboardEnabled = KeyboardStatus.isEnabled }) {
+            OnboardingView(start: .keyboard) { showSetup = false }
+                .environmentObject(controller)
         }
-        .onChange(of: controller.historyVersion) { _, _ in records = HistoryStore.load() }
+        .onAppear { keyboardEnabled = KeyboardStatus.isEnabled }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { keyboardEnabled = KeyboardStatus.isEnabled }
+        }
     }
 
-    private var wordCount: Int {
-        records.reduce(0) { $0 + $1.wordCount }
+    /// Dictating inside Yapper, copied when it's done: the Action Button's
+    /// dictation, from Home.
+    private var dictateButton: some View {
+        Button {
+            if controller.isSessionLive || controller.startSession() {
+                controller.beginRecording(source: .app)
+            }
+        } label: {
+            Image(systemName: "mic")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(Theme.textMuted)
+                .frame(width: Theme.controlHeight, height: Theme.controlHeight)
+                .overlay(Circle().strokeBorder(Theme.border, lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dictate and copy")
     }
+
+    private func labels(_ status: Status) -> some View {
+        VStack(spacing: 6) {
+            Text(status.title)
+                .font(Theme.display(28))
+                .tracking(-0.6)
+                .foregroundStyle(Theme.textEmphasis)
+                .accessibilityHidden(true)
+            if let detail = status.detail {
+                Text(detail)
+                    .font(Theme.font(14))
+                    .monospacedDigit()
+                    .foregroundStyle(status.detailIsError ? Theme.errorFg : Theme.textMuted)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .frame(maxWidth: 300)
+                    .accessibilityHidden(!status.detailIsError)
+            }
+        }
+        // Room for a detail line, so the button doesn't move when one shows.
+        .frame(minHeight: 64, alignment: .top)
+        .padding(.horizontal, 20)
+    }
+
+    private func toggle() {
+        Haptics.toggle()
+        if controller.switchEngine(on: !controller.isSessionLive) { firstLoadNote = true }
+    }
+
+    // MARK: State
+
+    struct Status {
+        var look: PowerButton.Look
+        var progress: Double?
+        var title: String
+        var detail: String?
+        var detailIsError = false
+
+        /// For VoiceOver: the title and, unless it's an error read on its
+        /// own, the detail.
+        var spoken: String {
+            guard let detail, !detailIsError else { return title }
+            return "\(title), \(detail)"
+        }
+    }
+
+    private func status(at now: Date) -> Status {
+        if let pinned = Self.pinnedStatus { return pinned }
+        let error = controller.errorMessage
+        switch controller.phase {
+        case .idle:
+            if controller.interrupted {
+                return Status(look: .paused, title: "Paused",
+                              detail: error ?? "A call took the microphone. Tap to resume.", detailIsError: error != nil)
+            }
+            return Status(look: .off, title: "Off", detail: error, detailIsError: error != nil)
+        case .recording:
+            return Status(look: .lit(Theme.recording), title: "Listening")
+        case .transcribing:
+            return Status(look: .lit(Theme.working), title: "Typing")
+        case .ready, .preparing:
+            break
+        }
+        if controller.modelState == .loading {
+            let (progress, detail) = loading(at: now)
+            // With Don't wait for Parakeet, Apple on-device already takes
+            // dictations, so the engine is on while Parakeet loads.
+            if Settings.appleWhileLoading, !Settings.parakeetOnly {
+                return Status(look: .lit(Theme.ready), progress: progress, title: "On", detail: detail)
+            }
+            return Status(look: .off, progress: progress, title: "Starting", detail: detail)
+        }
+        let until = controller.sessionEnds.map { "Until \($0.formatted(date: .omitted, time: .shortened))" }
+        return Status(look: .lit(Theme.ready), title: "On", detail: until)
+    }
+
+    /// The ring and "Loading… 40%": measured from last load's timings when
+    /// there are any, otherwise step by step.
+    private func loading(at now: Date) -> (Double, String) {
+        guard let stage = controller.loadStage else { return (0.02, "Loading…") }
+        if let timed = LoadProgress.timedProgress(stage: stage, stageStarted: controller.loadStageStarted,
+                                                  estimate: controller.loadEstimate, at: now) {
+            return (timed.fraction, "Loading… \(Int(timed.fraction * 100))%")
+        }
+        let detail = stage.step > 0 ? "Loading… step \(stage.step) of \(stage.total)" : "Loading…"
+        return (LoadProgress.stepFraction(stage), detail)
+    }
+
+    /// `-homeState off|on|loading|paused`: the screenshot tests show a state
+    /// without a microphone or a model (simulator only, with `-screenshots`).
+    private static let pinnedStatus: Status? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-screenshots"), let index = arguments.firstIndex(of: "-homeState"),
+              arguments.indices.contains(index + 1) else { return nil }
+        let until = Date().addingTimeInterval(15 * 60).formatted(date: .omitted, time: .shortened)
+        switch arguments[index + 1] {
+        case "on": return Status(look: .lit(Theme.ready), title: "On", detail: "Until \(until)")
+        case "loading": return Status(look: .off, progress: 0.4, title: "Starting", detail: "Loading… 40%")
+        case "paused": return Status(look: .paused, title: "Paused", detail: "A call took the microphone. Tap to resume.")
+        default: return Status(look: .off, title: "Off")
+        }
+    }()
 }
 
 /// Whether the Yapper keyboard has been added in Settings.

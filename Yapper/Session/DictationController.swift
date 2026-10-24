@@ -58,6 +58,9 @@ final class DictationController: ObservableObject {
     /// Why the Live Activity (Dynamic Island, Lock Screen) isn't showing,
     /// when it isn't. Nil when it is, or when no session is on.
     @Published private(set) var liveActivityProblem: String?
+    /// True after a call or Siri took the microphone and switched the engine
+    /// off, until the engine is turned on (or off) again.
+    @Published private(set) var interrupted = false
 
     /// True from the start of a recording until the user leaves the
     /// listening screen (swiping back to the keyboard, or Close).
@@ -500,6 +503,7 @@ final class DictationController: ObservableObject {
             Bridge.lastError = error.localizedDescription
             return false
         }
+        interrupted = false
         if phase == .idle { setPhase(.ready) }
         extendSession()
         // The recorder's audio thread keeps the heartbeat fresh while the
@@ -555,6 +559,7 @@ final class DictationController: ObservableObject {
         presentingListening = false
         level = 0
         Bridge.level = 0
+        interrupted = false
         setPhase(.idle)
         endActivity()
         releaseModel()
@@ -783,6 +788,7 @@ final class DictationController: ObservableObject {
         // A call or Siri took the microphone. Keep what was said so far, then
         // stay off: restarting on our own would bring the mic back with
         // nobody asking for it. The next mic tap starts a new session.
+        if phase != .idle { interrupted = true }
         if phase == .recording {
             finishRecording(interrupted: true)
         }
@@ -880,6 +886,12 @@ enum Haptics {
     static func start() {
         guard Settings.haptics else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    /// The engine switched on or off from Home's power button.
+    static func toggle() {
+        guard Settings.haptics else { return }
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
     }
 
     static func success() {

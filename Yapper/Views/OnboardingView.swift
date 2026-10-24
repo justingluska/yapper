@@ -15,7 +15,7 @@ struct OnboardingView: View {
 
     @EnvironmentObject private var controller: DictationController
     @Environment(\.scenePhase) private var scenePhase
-    @State private var step: Step = OnboardingView.savedStep
+    @State private var step: Step
     @State private var micStatus = Recorder.permission
     @State private var keyboardAdded = KeyboardStatus.isEnabled
     @State private var fullAccess = KeyboardStatus.hasFullAccess
@@ -23,6 +23,12 @@ struct OnboardingView: View {
     @FocusState private var practiceFocused: Bool
 
     private static let stepKey = "onboarding.step"
+
+    /// `start`: a step to open on, for finishing setup later from Home.
+    init(start: Step? = nil, onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+        _step = State(initialValue: start ?? Self.savedStep)
+    }
 
     private static var savedStep: Step {
         // `-onboardingStep <name>`: the screenshot tests open a given step.

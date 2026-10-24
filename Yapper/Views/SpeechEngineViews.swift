@@ -1,123 +1,7 @@
 import SwiftUI
 
-/// Home's speech engine card: the on/off switch for a session, which model
-/// does the work, and how it all works.
-struct SpeechEngineCard: View {
-    @EnvironmentObject private var controller: DictationController
-    @State private var showHow = false
-
-    var body: some View {
-        Card {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    SectionLabel(text: "Speech engine")
-                    Text(title)
-                        .font(Theme.display(24))
-                        .tracking(-0.4)
-                        .foregroundStyle(Theme.textEmphasis)
-                }
-                Spacer()
-                SessionToggle()
-            }
-
-            Text(statusText)
-                .font(Theme.font(15))
-                .foregroundStyle(Theme.text)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if controller.modelState == .loading, let stage = controller.loadStage {
-                LoadProgress(stage: stage, started: controller.loadStarted,
-                             stageStarted: controller.loadStageStarted, estimate: controller.loadEstimate)
-            }
-
-            if let problem = controller.liveActivityProblem {
-                Text(problem)
-                    .font(Theme.font(13))
-                    .foregroundStyle(Theme.errorFg)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            NavigationLink {
-                ModelsView()
-            } label: {
-                ModelSummaryRow()
-            }
-            .buttonStyle(.plain)
-
-            if ModelChoice.current == .apple, controller.appleModel == .notInstalled {
-                AppleNewestModelPrompt()
-            }
-
-            Button {
-                if controller.isSessionLive || controller.startSession() {
-                    controller.beginRecording(source: .app)
-                }
-            } label: {
-                Label("Dictate and copy", systemImage: "mic.fill")
-            }
-            .buttonStyle(PrimaryButtonStyle())
-
-            if let error = controller.errorMessage, controller.phase != .recording {
-                Text(error)
-                    .font(Theme.font(13))
-                    .foregroundStyle(Theme.errorFg)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { showHow.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Text("How it works")
-                        .font(Theme.font(14, .medium))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .rotationEffect(.degrees(showHow ? 180 : 0))
-                    Spacer()
-                }
-                .foregroundStyle(Theme.textMuted)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if showHow {
-                HowItWorks()
-                    .transition(.opacity)
-            }
-        }
-    }
-
-    private var isLoading: Bool {
-        controller.isSessionLive && controller.modelState == .loading
-    }
-
-    private var title: String {
-        if isLoading { return "Starting" }
-        return controller.isSessionLive ? "On" : "Off"
-    }
-
-    private var statusText: String {
-        if isLoading {
-            if Settings.appleWhileLoading, !Settings.parakeetOnly {
-                return "Loading \(ModelChoice.current.title) onto your iPhone's Neural Engine. You can already dictate: until it's ready, Apple on-device transcribes instantly."
-            }
-            return "Loading \(ModelChoice.current.title) onto your iPhone's Neural Engine. You can already dictate; your first words are transcribed as soon as it's ready."
-        }
-        if controller.isSessionLive {
-            if let ends = controller.sessionEnds {
-                return "Listening for the keyboard until \(ends.formatted(date: .omitted, time: .shortened)). Tap the Yapper keyboard in any app and talk; you won't come back here."
-            }
-            return "Listening for the keyboard until you turn it off. Tap the Yapper keyboard in any app and talk; you won't come back here."
-        }
-        if !ModelChoice.current.isParakeet {
-            return "Turned off. Nothing is listening. iOS only lets the Yapper app use the microphone, not the keyboard, so it has to be on: switch it on here, or just tap the Yapper keyboard and the first tap opens Yapper once to do it."
-        }
-        return "Turned off. Nothing is listening and no model is in memory. Turn it on before you start writing, or just tap the Yapper keyboard: the first tap opens Yapper once to turn it on."
-    }
-}
-
-/// The session switch. On starts the microphone and loads the model; off
-/// releases both.
+/// The session switch in Settings. On starts the microphone and loads the
+/// model; off releases both.
 struct SessionToggle: View {
     @EnvironmentObject private var controller: DictationController
     @State private var firstLoadNote = false
@@ -126,22 +10,38 @@ struct SessionToggle: View {
         Toggle("Speech engine", isOn: Binding(
             get: { controller.isSessionLive },
             set: { on in
-                if on {
-                    // Checked before starting: starting begins the load.
-                    let slow = controller.needsFirstLoad
-                    if controller.startSession(), slow { firstLoadNote = true }
-                } else {
-                    controller.endSession()
-                }
+                if controller.switchEngine(on: on) { firstLoadNote = true }
             }
         ))
         .labelsHidden()
         .tint(Theme.ready)
         .accessibilityLabel("Speech engine")
-        .alert("Loading \(ModelChoice.current.title)", isPresented: $firstLoadNote) {
+        .firstLoadNote(isPresented: $firstLoadNote)
+    }
+}
+
+extension DictationController {
+    /// Turns the engine on or off, for Settings' switch and Home's power
+    /// button. True when turning on just started a model's first load on
+    /// this iPhone, which takes minutes and deserves a note.
+    func switchEngine(on: Bool) -> Bool {
+        guard on else {
+            endSession()
+            return false
+        }
+        // Checked before starting: starting begins the load.
+        let slow = needsFirstLoad
+        return startSession() && slow
+    }
+}
+
+extension View {
+    /// Why the very first load of a Parakeet model takes minutes.
+    func firstLoadNote(isPresented: Binding<Bool>) -> some View {
+        alert("Loading \(ModelChoice.current.title)", isPresented: isPresented) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds, and Yapper shows the time left.\n\nThe Speech engine card on Home shows each step as it goes. You can keep using your phone. The Dynamic Island turns blue when the engine is ready.\n\nDon't want to wait? Turn on Don't wait for Parakeet in Speech models, and Apple on-device takes your dictations until it's ready.")
+            Text("This is the first time this model runs on your iPhone, so iOS is optimizing it for your Neural Engine. That can take a few minutes, once. After this it loads in a few seconds.\n\nThe ring around Home's power button shows how far it's got. You can keep using your phone. The Dynamic Island turns blue when the engine is ready.\n\nDon't want to wait? Turn on Don't wait for Parakeet in Settings › Speech model, and Apple on-device takes your dictations until it's ready.")
         }
     }
 }
@@ -170,7 +70,7 @@ struct HowItWorks: View {
             point("Long dictations and calls.",
                   "There's no length limit. If a call comes in while you're talking, Yapper stops and keeps what you said before it: it's in History and on the clipboard.")
             point("The orange dot.",
-                  "iOS shows it the whole time the engine is on, and apps can't change its color. Yapper's own sign is in the Dynamic Island: blue while the engine is ready, red while it's listening, amber while it types. Yapper only keeps audio while you're dictating, and the engine switches itself off after the time you choose in Settings, or when you turn it off here, in the keyboard, or from the Dynamic Island.")
+                  "iOS shows it the whole time the engine is on, and apps can't change its color. Yapper's own sign is in the Dynamic Island: blue while the engine is ready, red while it's listening, amber while it types. Yapper only keeps audio while you're dictating, and the engine switches itself off after the time you choose in Settings, or when you turn it off on Home, in the keyboard, or from the Dynamic Island.")
         }
     }
 
@@ -183,60 +83,6 @@ struct HowItWorks: View {
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
-/// One line on Home: which model, and whether it's ready. Opens the model list.
-struct ModelSummaryRow: View {
-    @EnvironmentObject private var controller: DictationController
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "cpu")
-                .font(.system(size: 17))
-                .foregroundStyle(Theme.textMuted)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(ModelChoice.current.title)
-                    .font(Theme.font(15, .semibold))
-                    .foregroundStyle(Theme.textEmphasis)
-                ModelStatusText(choice: ModelChoice.current)
-            }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.textFaint)
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).fill(Theme.fillSubtle))
-        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).strokeBorder(Theme.border))
-        .contentShape(Rectangle())
-    }
-}
-
-/// On Home, when Apple on-device is in use but iOS 26 doesn't have Apple's
-/// newest model for this language yet: the one tap that makes it better.
-struct AppleNewestModelPrompt: View {
-    @EnvironmentObject private var controller: DictationController
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Yapper is using Apple's older speech model. The newest one, the model behind Notes and Voice Memos transcription, is more accurate and free. iOS downloads it from Apple and shares it with other apps.")
-                .font(Theme.font(13))
-                .foregroundStyle(Theme.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
-            if let progress = controller.appleModelProgress {
-                ProgressView(value: progress)
-                    .tint(Theme.textEmphasis)
-            } else {
-                Button {
-                    Task { await controller.installAppleModel() }
-                } label: {
-                    Label("Get Apple's newest model", systemImage: "arrow.down.circle")
-                }
-                .buttonStyle(SecondaryButtonStyle())
-            }
         }
     }
 }
@@ -305,8 +151,7 @@ struct ModelStatusText: View {
 }
 
 /// The models: which one is in use, which are on the device, and the
-/// controls to switch, download and delete. Shared by Settings and its own
-/// page reached from Home.
+/// controls to switch, download and delete, in Settings.
 struct ModelsSection: View {
     @EnvironmentObject private var controller: DictationController
     @State private var parakeetOnly = Settings.parakeetOnly
@@ -463,23 +308,6 @@ struct ModelRow: View {
     }
 }
 
-/// The model list as its own page, reached from Home.
-struct ModelsView: View {
-    @EnvironmentObject private var controller: DictationController
-
-    var body: some View {
-        Form {
-            ModelsSection()
-        }
-        .font(Theme.font(16))
-        .scrollContentBackground(.hidden)
-        .background(Theme.background)
-        .navigationTitle("Speech models")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { controller.refreshDownloadedModels() }
-    }
-}
-
 /// Loading the model: which of the five steps, a bar, and how long it's
 /// been or how long is left. Core ML gives no percentage, so after the first
 /// ordinary load the bar and the time left come from how long each step took
@@ -514,11 +342,20 @@ struct LoadProgress: View {
         }
     }
 
-    private var stepFraction: Double {
+    private var stepFraction: Double { Self.stepFraction(stage) }
+
+    private func timedProgress(at now: Date) -> (fraction: Double, remaining: TimeInterval)? {
+        Self.timedProgress(stage: stage, stageStarted: stageStarted, estimate: estimate, at: now)
+    }
+
+    /// The bar before any load has been measured: step by step.
+    static func stepFraction(_ stage: Transcriber.LoadStage) -> Double {
         (Double(max(stage.step, 0)) + 0.5) / (Double(stage.total) + 0.5)
     }
 
-    private func timedProgress(at now: Date) -> (fraction: Double, remaining: TimeInterval)? {
+    /// The bar and the time left from last load's timings, when there are any.
+    static func timedProgress(stage: Transcriber.LoadStage, stageStarted: Date?, estimate: LoadTimings?,
+                              at now: Date) -> (fraction: Double, remaining: TimeInterval)? {
         guard let estimate, estimate.total > 0, let stageStarted else { return nil }
         return estimate.progress(step: stage.step, inStep: now.timeIntervalSince(stageStarted))
     }

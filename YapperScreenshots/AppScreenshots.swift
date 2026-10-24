@@ -8,23 +8,31 @@ final class AppScreenshots: XCTestCase {
 
     func testMainScreens() {
         for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+
+            // Home's other states, pinned: the simulator has no model to load
+            // and no call to pause for.
+            for state in ["on", "loading", "paused"] {
+                let pinned = XCUIApplication()
+                pinned.launchArguments = ["-screenshots", "-homeState", state] + (dark ? ["-dark"] : [])
+                pinned.launch()
+                attach(pinned, name: "home-\(state)-\(suffix)")
+                pinned.terminate()
+            }
+
             let app = XCUIApplication()
             app.launchArguments = ["-screenshots"] + (dark ? ["-dark"] : [])
             app.launch()
-            let suffix = dark ? "dark" : "light"
 
-            attach(app, name: "home-\(suffix)")
+            attach(app, name: "home-off-\(suffix)")
 
-            app.buttons["How it works"].firstMatch.tap()
-            attach(app, name: "home-how-it-works-\(suffix)")
-
-            let field = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
-            if field.waitForExistence(timeout: 2) {
-                app.swipeUp()
-                field.tap()
-                Thread.sleep(forTimeInterval: 1)
-                attach(app, name: "home-try-it-keyboard-\(suffix)")
-                if app.buttons["Done"].exists { app.buttons["Done"].tap() }
+            let setup = app.buttons.containing(NSPredicate(format: "label BEGINSWITH 'Finish setup'")).firstMatch
+            if setup.waitForExistence(timeout: 2) {
+                setup.tap()
+                Thread.sleep(forTimeInterval: 0.5)
+                attach(app, name: "home-setup-\(suffix)")
+                app.swipeDown(velocity: .fast)
+                Thread.sleep(forTimeInterval: 0.5)
             }
 
             app.tabBars.buttons["History"].tap()
@@ -40,12 +48,16 @@ final class AppScreenshots: XCTestCase {
             app.swipeUp()
             attach(app, name: "settings-3-\(suffix)")
 
-            app.tabBars.buttons["Home"].tap()
-            app.swipeDown()
-            let models = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Parakeet' OR label CONTAINS 'Apple on-device'")).firstMatch
-            if models.waitForExistence(timeout: 2) {
-                models.tap()
-                attach(app, name: "models-\(suffix)")
+            let tryKeyboard = app.buttons["Try the keyboard"].firstMatch
+            scroll(app, to: tryKeyboard)
+            if tryKeyboard.exists {
+                tryKeyboard.tap()
+                let field = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+                if field.waitForExistence(timeout: 2) {
+                    field.tap()
+                    Thread.sleep(forTimeInterval: 1)
+                }
+                attach(app, name: "settings-try-keyboard-\(suffix)")
             }
             app.terminate()
         }
@@ -207,7 +219,7 @@ final class AppScreenshots: XCTestCase {
         app.launch()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
-        app.switches.firstMatch.tap()
+        app.buttons["home.power"].firstMatch.tap()
         for label in ["Allow", "OK"] where springboard.alerts.buttons[label].waitForExistence(timeout: 3) {
             springboard.alerts.buttons[label].tap()
         }

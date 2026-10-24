@@ -144,6 +144,7 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink("Try the keyboard") { TryKeyboardView() }
                 Button("Keyboard settings") { KeyboardStatus.openSettings() }
                 Button("Action Button and Control Center") { showActionButtonHelp = true }
                 NavigationLink("Privacy") { PrivacyView() }
@@ -391,6 +392,44 @@ private struct PendingCut {
     let setting: Setting
     let title: String
     let message: String
+}
+
+/// A box to type into with the Yapper keyboard, to check it works.
+struct TryKeyboardView: View {
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PageTitle(title: "Try the keyboard",
+                          subtitle: "Tap the box, switch to the Yapper keyboard with the globe key, and tap it.")
+                TextField("Say something…", text: $text, axis: .vertical)
+                    .font(Theme.font(16))
+                    .lineLimit(3...8)
+                    .focused($focused)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: Theme.controlRadius).fill(Theme.fillInput))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius).strokeBorder(Theme.borderInput))
+                if !text.isEmpty {
+                    Button("Clear") { text = "" }
+                        .font(Theme.font(14, .medium))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            .padding(20)
+        }
+        // A dictation keyboard has no dismiss key, so dragging the page (or
+        // Done) puts it away.
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.background)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if focused {
+                Button("Done") { focused = false }
+            }
+        }
+    }
 }
 
 struct PrivacyView: View {
