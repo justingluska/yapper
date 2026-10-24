@@ -157,7 +157,10 @@ struct RootView: View {
             ListeningView()
                 .environmentObject(controller)
         }
+        // Links, pickers and nav buttons in the text color; switches in
+        // blue, since a white switch in dark mode looks the same on as off.
         .tint(Theme.textEmphasis)
+        .toggleStyle(SwitchToggleStyle(tint: Theme.ready))
         .preferredColorScheme(forcedScheme)
     }
 }
