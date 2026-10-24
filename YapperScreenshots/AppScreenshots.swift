@@ -198,6 +198,43 @@ final class AppScreenshots: XCTestCase {
         add(shot)
     }
 
+    /// Home's help sheet, light and dark.
+    func testHomeHelp() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-screenshots", "-homeState", "on", "-keyboardAdded"] + (dark ? ["-dark"] : [])
+            app.launch()
+            attach(app, name: "home-on-setup-done-\(dark ? "dark" : "light")")
+            app.buttons["home.help"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 0.5)
+            attach(app, name: "home-help-\(dark ? "dark" : "light")")
+            app.terminate()
+        }
+    }
+
+    /// The App Store set, light: Home on, its help, History, stats and
+    /// Dictionary, with the keyboard set up. The keyboard and onboarding
+    /// shots come from KeyboardScreenshots and testOnboarding.
+    func testAppStore() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-screenshots", "-sampleHistory", "-homeState", "on", "-keyboardAdded"]
+        app.launch()
+        attach(app, name: "appstore-home-on")
+        app.buttons["home.help"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+        attach(app, name: "appstore-home-help")
+        app.navigationBars.buttons["Done"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+
+        app.tabBars.buttons["History"].tap()
+        attach(app, name: "appstore-history")
+        app.tabBars.buttons["Settings"].tap()
+        attach(app, name: "appstore-stats")
+        app.tabBars.buttons["Dictionary"].tap()
+        attach(app, name: "appstore-dictionary")
+        app.terminate()
+    }
+
     /// Every onboarding step, light and dark.
     func testOnboarding() {
         for dark in [false, true] {

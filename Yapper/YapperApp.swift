@@ -57,6 +57,13 @@ struct YapperApp: App {
         }
         HistoryStore.save(records)
         RecordingStore.prune()
+        if Settings.replacements.isEmpty {
+            Settings.replacements = [
+                Replacement(spoken: "yapper", written: "Yapper"),
+                Replacement(spoken: "jay son", written: "JSON"),
+                Replacement(spoken: "my email", written: "dana@example.com"),
+            ]
+        }
         guard firstRun else { return }
         for day in 0..<120 where (day * 7) % 5 != 0 {
             guard let date = calendar.date(byAdding: .day, value: -day, to: Date()) else { continue }
