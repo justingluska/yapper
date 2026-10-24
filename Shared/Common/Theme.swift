@@ -74,6 +74,8 @@ enum Theme {
     static let cardRadius: CGFloat = 24
     /// One control height everywhere, at iOS's 44pt minimum tap target.
     static let controlHeight: CGFloat = 44
+    /// The one exception: onboarding's main button, pinned at the bottom.
+    static let largeControlHeight: CGFloat = 56
 
     // MARK: Type (Inter, bundled; falls back to the system font if missing)
 
@@ -163,11 +165,14 @@ struct PageTitle: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    /// Taller, with larger text: onboarding's pinned Continue.
+    var large = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.font(16, .semibold))
+            .font(Theme.font(large ? 18 : 16, .semibold))
             .foregroundStyle(Theme.onPrimary)
-            .frame(maxWidth: .infinity, minHeight: Theme.controlHeight)
+            .frame(maxWidth: .infinity, minHeight: large ? Theme.largeControlHeight : Theme.controlHeight)
             .padding(.horizontal, 16)
             .background(
                 RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)

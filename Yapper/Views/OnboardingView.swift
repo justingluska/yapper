@@ -56,6 +56,9 @@ struct OnboardingView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
             }
+            footer
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
         }
         .background(Theme.background)
         .onChange(of: scenePhase) { _, phase in
@@ -75,6 +78,90 @@ struct OnboardingView: View {
                     .fill(item.rawValue <= step.rawValue ? Theme.textEmphasis : Theme.fillActive)
                     .frame(height: 4)
             }
+        }
+    }
+
+    // MARK: Buttons
+
+    /// Each step's buttons, pinned under it: one big main button, and room
+    /// under it for a second choice even when there isn't one, so the main
+    /// button sits in the same spot on every step.
+    private var footer: some View {
+        let actions = self.actions
+        return VStack(spacing: 4) {
+            Button(actions.main.title, action: actions.main.run)
+                .buttonStyle(PrimaryButtonStyle(large: true))
+            Group {
+                if let other = actions.other {
+                    Button(other.title, action: other.run)
+                        .buttonStyle(TextButtonStyle())
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(height: Theme.controlHeight)
+        }
+    }
+
+    private struct Action {
+        let title: String
+        let run: () -> Void
+    }
+
+    private var actions: (main: Action, other: Action?) {
+        switch step {
+        case .welcome:
+            return (Action(title: "Get started") { go(to: .microphone) }, nil)
+        case .microphone:
+            switch micStatus {
+            case .granted:
+                return (Action(title: "Continue") { go(to: .model) }, nil)
+            case .denied:
+                return (Action(title: "Open Settings") { KeyboardStatus.openSettings() },
+                        Action(title: "Skip for now") { go(to: .model) })
+            default:
+                // App Review wants a neutral label before the system prompt.
+                return (Action(title: "Continue") {
+                    Task {
+                        _ = await Recorder.requestPermission()
+                        // Apple's recognizer covers dictation until Parakeet
+                        // is downloaded; it needs its own permission.
+                        _ = await AppleSpeech.requestPermission()
+                        micStatus = Recorder.permission
+                        if micStatus == .granted { go(to: .model) }
+                    }
+                }, nil)
+            }
+        case .model:
+            if controller.downloadedModels.contains(.ultra) {
+                return (Action(title: "Continue") { go(to: .keyboard) }, nil)
+            }
+            let useApple = Action(title: controller.appleModel == .notInstalled ? "Use Apple's model (get the newest)" : "Use Apple's model") {
+                // iOS 26 without Apple's newest model for this language:
+                // ask iOS to fetch it. Until then the older one works.
+                if controller.appleModel == .notInstalled {
+                    Task { await controller.installAppleModel() }
+                }
+                go(to: .keyboard)
+            }
+            return (useApple, Action(title: "Download Parakeet, \(ModelChoice.ultra.downloadMB) MB") {
+                Task { await controller.downloadModel(.ultra) }
+                go(to: .keyboard)
+            })
+        case .keyboard:
+            if keyboardAdded {
+                return (Action(title: "Continue") { go(to: .fullAccess) }, nil)
+            }
+            return (Action(title: "Open Settings") { KeyboardStatus.openSettings() },
+                    Action(title: "I've added it") { go(to: .fullAccess) })
+        case .fullAccess:
+            if fullAccess {
+                return (Action(title: "Continue") { go(to: .tryIt) }, nil)
+            }
+            return (Action(title: "Open Settings") { KeyboardStatus.openSettings() },
+                    Action(title: "Skip for now") { go(to: .tryIt) })
+        case .tryIt:
+            return (Action(title: "Done") { finish() }, nil)
         }
     }
 
@@ -102,8 +189,6 @@ struct OnboardingView: View {
                 Point(title: "No tracking", text: "No analytics, no ads, nothing sent anywhere.")
                 Point(title: "Open source", text: "Every line is public, so anyone can check.")
             }
-            Button("Get started") { go(to: .microphone) }
-                .buttonStyle(PrimaryButtonStyle())
         }
     }
 
@@ -114,29 +199,12 @@ struct OnboardingView: View {
             switch micStatus {
             case .granted:
                 Done(text: "Microphone is on")
-                Button("Continue") { go(to: .model) }
-                    .buttonStyle(PrimaryButtonStyle())
             case .denied:
                 Text("Microphone access is off. Turn it on in Settings, under Yapper, then Microphone.")
                     .font(Theme.font(15))
                     .foregroundStyle(Theme.text)
-                Button("Open Settings") { KeyboardStatus.openSettings() }
-                    .buttonStyle(PrimaryButtonStyle())
-                Button("Skip for now") { go(to: .model) }
-                    .buttonStyle(SecondaryButtonStyle())
             default:
-                // App Review wants a neutral label before the system prompt.
-                Button("Continue") {
-                    Task {
-                        _ = await Recorder.requestPermission()
-                        // Apple's recognizer covers dictation until Parakeet
-                        // is downloaded; it needs its own permission.
-                        _ = await AppleSpeech.requestPermission()
-                        micStatus = Recorder.permission
-                        if micStatus == .granted { go(to: .model) }
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle())
+                EmptyView()
             }
         }
     }
@@ -145,21 +213,14 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 20) {
             PageTitle(title: "Add the keyboard", subtitle: "The Yapper keyboard is how your voice gets into other apps.")
             Card {
-                SettingsStep(number: 1, text: "Tap Open Settings below")
+                NumberedStep(number: 1, text: "Tap Open Settings below")
                 Hairline()
-                SettingsStep(number: 2, text: "Tap **Keyboards**")
+                NumberedStep(number: 2, text: "Tap **Keyboards**")
                 Hairline()
-                SettingsStep(number: 3, text: "Turn on **Yapper**")
+                NumberedStep(number: 3, text: "Turn on **Yapper**")
             }
             if keyboardAdded {
                 Done(text: "Yapper keyboard added")
-                Button("Continue") { go(to: .fullAccess) }
-                    .buttonStyle(PrimaryButtonStyle())
-            } else {
-                Button("Open Settings") { KeyboardStatus.openSettings() }
-                    .buttonStyle(PrimaryButtonStyle())
-                Button("I've added it") { go(to: .fullAccess) }
-                    .buttonStyle(SecondaryButtonStyle())
             }
         }
     }
@@ -172,17 +233,11 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.textMuted)
             if fullAccess {
                 Done(text: "Full Access is on")
-                Button("Continue") { go(to: .tryIt) }
-                    .buttonStyle(PrimaryButtonStyle())
             } else {
-                Button("Open Settings") { KeyboardStatus.openSettings() }
-                    .buttonStyle(PrimaryButtonStyle())
                 Text("To check, tap the box below and switch to the Yapper keyboard with the globe key.")
                     .font(Theme.font(14))
                     .foregroundStyle(Theme.textMuted)
                 PracticeField(text: $practice, focused: $practiceFocused, placeholder: "Tap here to check")
-                Button("Skip for now") { go(to: .tryIt) }
-                    .buttonStyle(SecondaryButtonStyle())
             }
         }
     }
@@ -205,23 +260,6 @@ struct OnboardingView: View {
             }
             if controller.downloadedModels.contains(.ultra) {
                 Done(text: "Parakeet is downloaded")
-                Button("Continue") { go(to: .keyboard) }
-                    .buttonStyle(PrimaryButtonStyle())
-            } else {
-                Button(controller.appleModel == .notInstalled ? "Use Apple's model (get the newest)" : "Use Apple's model") {
-                    // iOS 26 without Apple's newest model for this language:
-                    // ask iOS to fetch it. Until then the older one works.
-                    if controller.appleModel == .notInstalled {
-                        Task { await controller.installAppleModel() }
-                    }
-                    go(to: .keyboard)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                Button("Download Parakeet, \(ModelChoice.ultra.downloadMB) MB") {
-                    Task { await controller.downloadModel(.ultra) }
-                    go(to: .keyboard)
-                }
-                .buttonStyle(SecondaryButtonStyle())
             }
         }
     }
@@ -230,20 +268,13 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 20) {
             PageTitle(title: "Try it", subtitle: "Tap the box, switch to the Yapper keyboard with the globe key, then tap anywhere on it.")
             PracticeField(text: $practice, focused: $practiceFocused, placeholder: "Say something…")
-            Text("The first time, the keyboard opens Yapper, which starts listening right away. Talk, tap to finish, then swipe right along the bottom edge of the screen to go back. Your words will be there.")
+            Text("In other apps, the first dictation opens Yapper to start listening, and Yapper takes you back to your app by itself. If it can't, swipe right along the bottom edge of the screen. Your words will be there.")
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
-            Text("After that the mic stays ready for \(sessionLabel), so the keyboard records right where you are.")
+            Text("After that the mic stays ready for \(Settings.sessionLabel), so the keyboard records right where you are.")
                 .font(Theme.font(14))
                 .foregroundStyle(Theme.textMuted)
-            Button("Done") { finish() }
-                .buttonStyle(PrimaryButtonStyle())
         }
-    }
-
-    private var sessionLabel: String {
-        let minutes = Settings.sessionMinutes
-        return minutes == 0 ? "until you turn it off" : minutes >= 60 ? "an hour" : "\(minutes) minutes"
     }
 
     private func refreshStatus() {
@@ -261,6 +292,18 @@ struct OnboardingView: View {
     private func finish() {
         Bridge.defaults.removeObject(forKey: Self.stepKey)
         onFinish()
+    }
+}
+
+/// A second choice under the main button: plain text, full width.
+private struct TextButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.font(16, .medium))
+            .foregroundStyle(Theme.text)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.5 : 1)
     }
 }
 
@@ -303,12 +346,13 @@ private struct PracticeField: View {
     }
 }
 
-private struct SettingsStep: View {
+/// A numbered step: onboarding's way into Settings, and Home's help.
+struct NumberedStep: View {
     let number: Int
     let text: LocalizedStringKey
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("\(number)")
                 .font(Theme.font(13, .semibold))
                 .frame(width: 26, height: 26)
@@ -317,6 +361,7 @@ private struct SettingsStep: View {
             Text(text)
                 .font(Theme.font(15))
                 .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

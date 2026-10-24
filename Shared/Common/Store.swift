@@ -38,6 +38,12 @@ enum Settings {
         set { defaults.set(newValue, forKey: Key.sessionMinutes) }
     }
 
+    /// "15 minutes", "an hour": how long the mic stays ready, for sentences.
+    static var sessionLabel: String {
+        let minutes = sessionMinutes
+        return minutes == 0 ? "until you turn it off" : minutes >= 60 ? "an hour" : "\(minutes) minutes"
+    }
+
     static var removeFillers: Bool {
         get { defaults.object(forKey: Key.removeFillers) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.removeFillers) }
