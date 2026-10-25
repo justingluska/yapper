@@ -24,8 +24,9 @@ final class Recorder {
     private(set) var sampleRate: Double = 48_000
     private(set) var isRunning = false
 
-    /// Called on the audio thread with an RMS level in 0...1.
-    var onLevel: ((Float) -> Void)?
+    /// Called on the audio thread, while capturing, with an RMS level in 0...1
+    /// for every 10 ms of audio and when it was heard (`LevelFeed.now` time).
+    var onLevel: ((Float, Double) -> Void)?
     /// Called on the main queue when the audio session is interrupted (a
     /// phone call) or the route changes so the engine stopped.
     var onInterrupted: (() -> Void)?
@@ -84,8 +85,8 @@ final class Recorder {
         sampleRate = format.sampleRate
 
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
-            self?.handle(buffer)
+        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, when in
+            self?.handle(buffer, at: when)
         }
         engine.prepare()
         try engine.start()
@@ -123,7 +124,7 @@ final class Recorder {
 
     private var lastBeat: TimeInterval = 0
 
-    private func handle(_ buffer: AVAudioPCMBuffer) {
+    private func handle(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime) {
         // The heartbeat comes from the audio thread: a backgrounded app's main
         // queue gets throttled, but the tap keeps firing as long as the
         // engine (and so the session) is alive.
@@ -138,15 +139,36 @@ final class Recorder {
 
         guard lock.withLock({ capturing }) else { return }
 
-        var sum: Float = 0
-        for sample in mono { sum += sample * sample }
-        let rms = count > 0 ? (sum / Float(count)).squareRoot() : 0
-        // Map roughly -50...0 dBFS onto 0...1 for the waveform.
-        let db = 20 * log10(max(rms, 0.000_01))
-        onLevel?(max(0, min(1, (db + 50) / 50)))
+        publishLevels(mono, rate: buffer.format.sampleRate, at: when)
 
         lock.withLock {
             if capturing { samples.append(contentsOf: mono) }
+        }
+    }
+
+    /// A level per 10 ms window rather than per buffer: iOS taps at least
+    /// 100 ms at a time, and a level per buffer is a waveform at ten frames a
+    /// second. Each is stamped with when its window was heard, so the reader
+    /// can play them back evenly however they arrive.
+    private func publishLevels(_ mono: UnsafeBufferPointer<Float>, rate: Double, at when: AVAudioTime) {
+        guard let onLevel, rate > 0, !mono.isEmpty else { return }
+        let now = LevelFeed.now
+        let duration = Double(mono.count) / rate
+        var start = when.isHostTimeValid ? AVAudioTime.seconds(forHostTime: when.hostTime) : now - duration
+        // A host time from the future or long ago is a bad stamp, not audio.
+        if start > now || now - start > 1 { start = now - duration }
+
+        let window = max(1, Int(rate / 100))
+        var offset = 0
+        while offset < mono.count {
+            let length = min(window, mono.count - offset)
+            var sum: Float = 0
+            for index in offset..<(offset + length) { sum += mono[index] * mono[index] }
+            let rms = (sum / Float(length)).squareRoot()
+            // Map roughly -50...0 dBFS onto 0...1 for the waveform.
+            let db = 20 * log10(max(rms, 0.000_01))
+            onLevel(max(0, min(1, (db + 50) / 50)), start + (Double(offset) + Double(length) / 2) / rate)
+            offset += length
         }
     }
 }

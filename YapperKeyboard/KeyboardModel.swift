@@ -16,7 +16,6 @@ final class KeyboardModel: ObservableObject {
     @Published var layer: Layer = .letters
     @Published var shift: Shift = .on
     @Published private(set) var phase: Bridge.Phase = .idle
-    @Published private(set) var level: Float = 0
     @Published private(set) var recordingStarted: Date?
     @Published private(set) var sessionEnds: Date?
     @Published private(set) var hasFullAccess = false
@@ -25,6 +24,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var undoText: String?
     /// True between a mic tap and the app answering, for the warm path.
     @Published private(set) var waitingForApp = false
+
+    /// Where the bars read the voice from, every frame while recording.
+    let levelFeed: LevelFeed?
 
     private weak var controller: KeyboardViewController?
     private let signals = SignalObserver()
@@ -41,6 +43,7 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: KeyboardViewController) {
         self.controller = controller
+        levelFeed = Bridge.levelFeed
         signals.observe(.stateChanged) { [weak self] in self?.refresh() }
         signals.observe(.resultReady) { [weak self] in self?.insertPendingResult() }
         // Going to Yapper and swiping back doesn't make the keyboard appear
@@ -71,6 +74,7 @@ final class KeyboardModel: ObservableObject {
     /// its keys do nothing.
     init(preview phase: Bridge.Phase, sessionEnds: Date? = nil, undo: String? = nil, banner: String? = nil,
          waitingForApp: Bool = false, compact: Bool = false, mode: Mode = .voice) {
+        levelFeed = LevelFeed()
         self.mode = mode
         self.phase = phase
         self.sessionEnds = sessionEnds
@@ -84,7 +88,7 @@ final class KeyboardModel: ObservableObject {
 
     /// Feeds the level bars in a preview.
     func previewLevel(_ value: Float) {
-        level = value
+        levelFeed?.write(value, at: LevelFeed.now)
     }
 
     var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
@@ -149,8 +153,9 @@ final class KeyboardModel: ObservableObject {
 
     private func startPolling() {
         poll?.invalidate()
-        // Level for the waveform and the heartbeat watchdog. Cheap: a few
-        // UserDefaults reads, ten times a second, only while visible.
+        // Phase and the heartbeat watchdog. Cheap: a few UserDefaults reads,
+        // ten times a second, only while visible. The bars read the level
+        // themselves, every frame (`LevelFeed`).
         poll = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             Task { @MainActor [weak self] in self?.refresh() }
         }
@@ -163,10 +168,8 @@ final class KeyboardModel: ObservableObject {
         let ends = live == .idle ? nil : Bridge.sessionEnds
         if ends != sessionEnds { sessionEnds = ends }
         if live == .recording {
-            level = Bridge.level
             recordingStarted = Bridge.recordingStarted
         } else {
-            level = 0
             recordingStarted = nil
         }
         if waitingForApp, live == .recording {

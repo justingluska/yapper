@@ -26,7 +26,6 @@ final class DictationController: ObservableObject {
     @Published private(set) var modelState: ModelState = .notDownloaded {
         didSet { updateScreenAwake() }
     }
-    @Published private(set) var level: Float = 0
     @Published private(set) var recordingStarted: Date?
     @Published private(set) var sessionEnds: Date?
     @Published private(set) var lastText: String?
@@ -72,7 +71,6 @@ final class DictationController: ObservableObject {
     private let signals = SignalObserver()
     private var expiry: Timer?
     private var activity: Activity<SessionAttributes>?
-    private var lastLevelWrite: CFTimeInterval = 0
     /// The load in flight, shared by everyone who needs the model, so a
     /// dictation can wait for it instead of falling back.
     private var loadTask: Task<Void, Never>?
@@ -93,8 +91,10 @@ final class DictationController: ObservableObject {
     var isSessionLive: Bool { phase != .idle }
 
     private init() {
-        recorder.onLevel = { [weak self] value in
-            Task { @MainActor in self?.updateLevel(value) }
+        // Straight from the audio thread: the feed is lock-free, and a hop
+        // to the main queue would bunch the levels up again.
+        recorder.onLevel = { value, time in
+            Bridge.levelFeed?.write(value, at: time)
         }
         recorder.onInterrupted = { [weak self] in
             Task { @MainActor in self?.handleInterruption() }
@@ -112,7 +112,6 @@ final class DictationController: ObservableObject {
         // believe a stale phase.
         Bridge.phase = .idle
         Bridge.recordingStarted = nil
-        Bridge.level = 0
         Bridge.sessionEnds = nil
     }
 
@@ -557,8 +556,6 @@ final class DictationController: ObservableObject {
         recordingStarted = nil
         Bridge.recordingStarted = nil
         presentingListening = false
-        level = 0
-        Bridge.level = 0
         interrupted = false
         setPhase(.idle)
         endActivity()
@@ -822,16 +819,6 @@ final class DictationController: ObservableObject {
         let busy = phase == .recording || phase == .transcribing || retranscribing || downloading
         if UIApplication.shared.isIdleTimerDisabled != busy {
             UIApplication.shared.isIdleTimerDisabled = busy
-        }
-    }
-
-    private func updateLevel(_ value: Float) {
-        guard phase == .recording else { return }
-        level = value
-        let now = CACurrentMediaTime()
-        if now - lastLevelWrite > 0.066 {
-            lastLevelWrite = now
-            Bridge.level = value
         }
     }
 
