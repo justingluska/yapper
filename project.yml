@@ -104,6 +104,8 @@ targets:
         UIBackgroundModes:
           - audio
         NSSupportsLiveActivities: true
+        # The waveform redraws every frame; let it run at 120 Hz on ProMotion.
+        CADisableMinimumFrameDurationOnPhone: true
         NSMicrophoneUsageDescription: Yapper listens while you dictate and turns your voice into text on this iPhone. Audio never leaves the device.
         NSSpeechRecognitionUsageDescription: When you choose Apple on-device, or while a Parakeet model isn't ready, Yapper transcribes with Apple's speech recognition, forced to run on this iPhone. Nothing is sent to Apple.
         CFBundleURLTypes:
@@ -148,6 +150,8 @@ targets:
           - Inter-Medium.ttf
           - Inter-SemiBold.ttf
           - InterDisplay-Medium.ttf
+        # The level bars redraw every frame while recording; 120 Hz on ProMotion.
+        CADisableMinimumFrameDurationOnPhone: true
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
@@ -229,6 +233,7 @@ targets:
       path: KeyboardPreview/Info.plist
       properties:
         CFBundleDisplayName: Keyboard Preview
+        CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UIAppFonts:
           - Inter-Regular.ttf
