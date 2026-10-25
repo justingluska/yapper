@@ -7,8 +7,9 @@ import Foundation
 /// control. They share two channels:
 ///
 /// - **State** lives in the App Group's UserDefaults: whether a session is
-///   live, what it is doing, the audio level for the waveform, and the latest
-///   transcript waiting to be inserted.
+///   live, what it is doing, and the latest transcript waiting to be
+///   inserted. The audio level for the waveform, written a hundred times a
+///   second, has its own channel: `levelFeed`.
 /// - **Signals** are Darwin notifications, which cross process boundaries but
 ///   carry no payload. The sender writes state first, then posts; the receiver
 ///   reads state when it hears the signal.
@@ -33,8 +34,8 @@ enum Bridge {
         return url
     }
     #else
-    /// Read ten times a second by the keyboard and on every audio buffer by
-    /// the app, so it's created once.
+    /// Read ten times a second by the keyboard and every second by the app's
+    /// audio thread, so it's created once.
     static let defaults = UserDefaults(suiteName: appGroup) ?? .standard
 
     static var containerURL: URL? {
@@ -115,7 +116,6 @@ enum Bridge {
         static let phase = "bridge.phase"
         static let heartbeat = "bridge.heartbeat"
         static let sessionEnds = "bridge.sessionEnds"
-        static let level = "bridge.level"
         static let recordingStarted = "bridge.recordingStarted"
         static let resultID = "bridge.resultID"
         static let resultText = "bridge.resultText"
@@ -150,9 +150,11 @@ enum Bridge {
         return phase != .idle && isAppAlive ? phase : .idle
     }
 
-    static var level: Float {
-        get { defaults.float(forKey: Key.level) }
-        set { defaults.set(newValue, forKey: Key.level) }
+    /// The live microphone level: written by the app's recorder, read every
+    /// frame by the keyboard's bars and the app's waveform. Nil when the
+    /// container isn't reachable (the keyboard without Full Access).
+    static let levelFeed: LevelFeed? = containerURL.flatMap {
+        LevelFeed(url: $0.appendingPathComponent("level-feed"))
     }
 
     static var recordingStarted: Date? {

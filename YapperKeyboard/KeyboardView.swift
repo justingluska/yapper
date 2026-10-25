@@ -113,11 +113,7 @@ private struct MicArea: View {
     var body: some View {
         Button { model.micTapped() } label: {
             VStack(spacing: 10) {
-                HStack(spacing: 14) {
-                    LevelBars(level: model.level, active: model.phase == .recording, mirrored: true)
-                    MicCircle(model: model)
-                    LevelBars(level: model.level, active: model.phase == .recording, mirrored: false)
-                }
+                MicRow(model: model)
                 caption
                     .frame(height: 36, alignment: .top)
             }
@@ -183,9 +179,36 @@ private struct MicArea: View {
     }
 }
 
+/// The mic between its two sets of bars. While recording it redraws every
+/// display frame (up to 120 Hz), reading the level straight from the app;
+/// otherwise the timeline is paused and nothing runs.
+private struct MicRow: View {
+    @ObservedObject var model: KeyboardModel
+    @State private var meter = LevelMeter(barCount: LevelBars.count)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let recording = model.phase == .recording
+        TimelineView(.animation(minimumInterval: nil, paused: !recording)) { context in
+            let bars = recording
+                ? meter.bars(at: context.date, feed: model.levelFeed, still: reduceMotion)
+                : LevelBars.silent
+            HStack(spacing: 14) {
+                LevelBars(levels: bars, active: recording, mirrored: true)
+                // The ring's pulse is decoration; Reduce Motion drops it.
+                MicCircle(model: model, pulse: recording && !reduceMotion ? meter.level : 0)
+                LevelBars(levels: bars, active: recording, mirrored: false)
+            }
+        }
+        .onChange(of: recording) { meter.reset() }
+    }
+}
+
 /// The round button itself.
 private struct MicCircle: View {
     @ObservedObject var model: KeyboardModel
+    /// The voice level, 0...1, for the ring.
+    let pulse: Float
 
     var body: some View {
         ZStack {
@@ -194,8 +217,7 @@ private struct MicCircle: View {
             if model.phase == .recording {
                 Circle()
                     .strokeBorder(Theme.recording.opacity(0.35), lineWidth: 6)
-                    .scaleEffect(1 + CGFloat(min(model.level, 1)) * 0.25)
-                    .animation(.easeOut(duration: 0.1), value: model.level)
+                    .scaleEffect(1 + CGFloat(min(pulse, 1)) * 0.25)
             }
             icon
         }
@@ -237,34 +259,35 @@ private struct MicPress: ButtonStyle {
 }
 
 /// Bars that follow the input level, newest nearest the mic. Flat and faint
-/// when not recording, so the layout never jumps.
+/// when not recording, so the layout never jumps. Drawn in one Canvas pass:
+/// they change every frame, and nine views a side would be diffed every frame.
 private struct LevelBars: View {
-    let level: Float
+    static let count = 9
+    static let silent = [Float](repeating: 0, count: count)
+    private static let width: CGFloat = 4
+    private static let spacing: CGFloat = 4
+    private static let height: CGFloat = 48
+
+    /// Newest first.
+    let levels: [Float]
     let active: Bool
+    /// The left side, where the newest bar is on the right, by the mic.
     let mirrored: Bool
-    @State private var levels: [Float] = Array(repeating: 0, count: 9)
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
-            ForEach(ordered.indices, id: \.self) { index in
-                Capsule()
-                    .fill(active ? Theme.recording : Theme.textFaint.opacity(0.35))
-                    .frame(width: 4, height: max(4, CGFloat(ordered[index]) * 48))
+        Canvas { context, size in
+            let color = active ? Theme.recording : Theme.textFaint.opacity(0.35)
+            for (index, level) in levels.prefix(Self.count).enumerated() {
+                let offset = CGFloat(index) * (Self.width + Self.spacing)
+                let x = mirrored ? size.width - Self.width - offset : offset
+                let height = max(Self.width, CGFloat(min(max(level, 0), 1)) * size.height)
+                let bar = CGRect(x: x, y: (size.height - height) / 2, width: Self.width, height: height)
+                context.fill(Capsule().path(in: bar), with: .color(color))
             }
         }
-        .frame(height: 48)
-        .onChange(of: level) { _, value in
-            levels.removeFirst()
-            levels.append(active ? value : 0)
-        }
-        .onChange(of: active) { _, isActive in
-            if !isActive { levels = Array(repeating: 0, count: levels.count) }
-        }
+        .frame(width: CGFloat(Self.count) * Self.width + CGFloat(Self.count - 1) * Self.spacing, height: Self.height)
         .accessibilityHidden(true)
     }
-
-    /// Newest value next to the mic on both sides.
-    private var ordered: [Float] { mirrored ? levels : levels.reversed() }
 }
 
 // MARK: - Bottom row

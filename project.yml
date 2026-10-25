@@ -198,6 +198,8 @@ targets:
       - path: Shared/Common/LoadTimings.swift
       - path: Shared/Common/Retention.swift
       - path: Shared/Common/DictationRecord.swift
+      - path: Shared/Common/LevelFeed.swift
+      - path: Shared/Common/LevelMeter.swift
       - path: Yapper/Audio/AudioChunks.swift
       - path: Yapper/Audio/RecordingEncoder.swift
       - path: Yapper/History/HistoryExport.swift

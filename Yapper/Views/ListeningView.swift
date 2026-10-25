@@ -51,7 +51,7 @@ struct ListeningView: View {
                         .monospacedDigit()
                         .foregroundStyle(Theme.textMuted)
                 }
-                Waveform(level: controller.level)
+                Waveform()
                     .frame(height: 96)
                 Button {
                     controller.finishRecording()
@@ -161,25 +161,29 @@ struct SwipeBackHint: View {
     }
 }
 
-/// Bars that follow the input level, newest on the right.
+/// Bars that follow the input level, newest on the right. Redrawn every
+/// display frame from the recorder's level feed (see `LevelMeter`), in one
+/// Canvas pass. It's only on screen while recording.
 struct Waveform: View {
-    let level: Float
-    @State private var history: [Float] = Array(repeating: 0, count: 40)
+    private static let count = 40
+    private static let spacing: CGFloat = 3
+    @State private var meter = LevelMeter(barCount: Waveform.count)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(alignment: .center, spacing: 3) {
-                ForEach(history.indices, id: \.self) { index in
-                    Capsule()
-                        .fill(Theme.textEmphasis)
-                        .frame(height: max(4, CGFloat(history[index]) * geo.size.height))
+        TimelineView(.animation) { context in
+            let bars = meter.bars(at: context.date, feed: Bridge.levelFeed, still: reduceMotion)
+            Canvas { context, size in
+                let count = CGFloat(Self.count)
+                let width = max(1, (size.width - Self.spacing * (count - 1)) / count)
+                let color = GraphicsContext.Shading.color(Theme.textEmphasis)
+                for (index, level) in bars.enumerated() {
+                    let height = max(4, CGFloat(min(max(level, 0), 1)) * size.height)
+                    let x = size.width - width - CGFloat(index) * (width + Self.spacing)
+                    let bar = CGRect(x: x, y: (size.height - height) / 2, width: width, height: height)
+                    context.fill(Capsule().path(in: bar), with: color)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .onChange(of: level) { _, value in
-            history.removeFirst()
-            history.append(value)
         }
         .accessibilityHidden(true)
     }
