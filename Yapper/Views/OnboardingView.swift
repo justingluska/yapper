@@ -10,7 +10,7 @@ struct OnboardingView: View {
     enum Step: Int, CaseIterable {
         // The model comes early: if the user wants Parakeet, it downloads while
         // they add the keyboard.
-        case welcome, microphone, model, keyboard, fullAccess, tryIt
+        case welcome, microphone, model, languages, keyboard, fullAccess, tryIt
     }
 
     @EnvironmentObject private var controller: DictationController
@@ -20,6 +20,8 @@ struct OnboardingView: View {
     @State private var keyboardAdded = KeyboardStatus.isEnabled
     @State private var fullAccess = KeyboardStatus.hasFullAccess
     @State private var practice = ""
+    @State private var secondLanguage = Settings.secondLanguage ?? ""
+    @State private var languageChoices: [Locale] = []
     @FocusState private var practiceFocused: Bool
 
     private static let stepKey = "onboarding.step"
@@ -134,7 +136,7 @@ struct OnboardingView: View {
             }
         case .model:
             if controller.downloadedModels.contains(.ultra) {
-                return (Action(title: "Continue") { go(to: .keyboard) }, nil)
+                return (Action(title: "Continue") { go(to: afterModel) }, nil)
             }
             let useApple = Action(title: controller.appleModel == .notInstalled ? "Use Apple's model (get the newest)" : "Use Apple's model") {
                 // iOS 26 without Apple's newest model for this language:
@@ -142,12 +144,20 @@ struct OnboardingView: View {
                 if controller.appleModel == .notInstalled {
                     Task { await controller.installAppleModel() }
                 }
-                go(to: .keyboard)
+                go(to: afterModel)
             }
             return (useApple, Action(title: "Download Parakeet, \(ModelChoice.ultra.downloadMB) MB") {
                 Task { await controller.downloadModel(.ultra) }
                 go(to: .keyboard)
             })
+        case .languages:
+            return (Action(title: secondLanguage.isEmpty ? "Just one language" : "Continue") {
+                if !secondLanguage.isEmpty {
+                    let chosen = secondLanguage
+                    Task { await controller.setSecondLanguage(chosen) }
+                }
+                go(to: .keyboard)
+            }, nil)
         case .keyboard:
             if keyboardAdded {
                 return (Action(title: "Continue") { go(to: .fullAccess) }, nil)
@@ -173,6 +183,7 @@ struct OnboardingView: View {
         case .keyboard: keyboard
         case .fullAccess: fullAccessStep
         case .model: model
+        case .languages: languages
         case .tryIt: tryIt
         }
     }
@@ -262,6 +273,42 @@ struct OnboardingView: View {
                 Done(text: "Parakeet is downloaded")
             }
         }
+    }
+
+    /// Two languages work with Apple's model only (iOS 26), so the step
+    /// shows when that's the one in use.
+    private var afterModel: Step {
+        ModelChoice.current == .apple && controller.appleModel != .unsupported ? .languages : .keyboard
+    }
+
+    private var languages: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            PageTitle(title: "Speak another language?",
+                      subtitle: "Switch between two languages whenever you like, even mid-sentence.")
+            Text("\u{201C}I need to go al supermercado before it closes.\u{201D} Pick your second language and Yapper listens for both, and keeps each part in the language you said it in.")
+                .font(Theme.font(15))
+                .foregroundStyle(Theme.text)
+            Card {
+                HStack {
+                    Text("Second language")
+                        .font(Theme.font(16))
+                        .foregroundStyle(Theme.textEmphasis)
+                    Spacer()
+                    Picker("Second language", selection: $secondLanguage) {
+                        Text("None").tag("")
+                        ForEach(languageChoices, id: \.self) { locale in
+                            Text(AppleAnalyzer.name(locale)).tag(locale.identifier(.bcp47))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+            }
+            Text("iOS downloads Apple's model for it once, while you finish setting up. It all still runs on this iPhone. Change it any time in Settings › Languages.")
+                .font(Theme.font(14))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .task { languageChoices = await AppleAnalyzer.secondLanguageChoices() }
     }
 
     private var tryIt: some View {

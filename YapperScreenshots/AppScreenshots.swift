@@ -247,7 +247,7 @@ final class AppScreenshots: XCTestCase {
     /// Every onboarding step, light and dark.
     func testOnboarding() {
         for dark in [false, true] {
-            for (index, step) in ["welcome", "microphone", "model", "keyboard", "fullAccess", "tryIt"].enumerated() {
+            for (index, step) in ["welcome", "microphone", "model", "languages", "keyboard", "fullAccess", "tryIt"].enumerated() {
                 let app = XCUIApplication()
                 app.launchArguments = ["-onboarding", "-onboardingStep", step] + (dark ? ["-dark"] : [])
                 app.launch()
