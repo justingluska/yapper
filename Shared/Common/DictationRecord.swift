@@ -97,6 +97,9 @@ struct LanguageBreakdown: Codable, Hashable {
     /// The split was found but not used: the whole dictation in one
     /// language read as surer. The language it was kept in.
     var keptWhole: String?
+    /// What each language's model heard in the whole dictation on its own,
+    /// before any splitting, for History's details. Nil on older records.
+    var heard: [Part]? = nil
 }
 
 /// One day's totals in Stats.

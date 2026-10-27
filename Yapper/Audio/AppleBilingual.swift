@@ -8,19 +8,43 @@ import Speech
 /// of a second or so per pass), so the extra passes cost little.
 @available(iOS 26.0, macOS 26.0, *)
 enum AppleBilingual {
-    /// This device's language and the second language from Settings, when
-    /// one is set, differs, and both models are on the device. Nil means
-    /// dictate in one language as usual.
-    static func languages() async -> [Locale]? {
-        guard let id = Settings.secondLanguage,
-              let primary = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current),
-              let second = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: id)),
-              primary.language.languageCode != second.language.languageCode
-        else { return nil }
+    /// Whether a dictation can listen in two languages, and if not, why.
+    enum Availability: Equatable {
+        /// This device's language and the second language, in that order.
+        case ready([Locale])
+        /// No second language in Settings.
+        case off
+        /// A second language is set but can't be used; the reason, in words.
+        case unavailable(String)
+    }
+
+    static func availability() async -> Availability {
+        guard let id = Settings.secondLanguage else { return .off }
+        let secondName = AppleAnalyzer.name(Locale(identifier: id))
+        guard let primary = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
+            return .unavailable("Second language not used: Apple's newer model doesn't support this \(Device.name)'s language (\(Locale.current.identifier)).")
+        }
+        guard let second = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: id)) else {
+            return .unavailable("Second language not used: Apple's newer model doesn't support \(secondName).")
+        }
+        guard primary.language.languageCode != second.language.languageCode else {
+            return .unavailable("Second language not used: \(secondName) is the same language as this \(Device.name)'s.")
+        }
         let installed = Set(await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) })
-        guard installed.contains(primary.identifier(.bcp47)), installed.contains(second.identifier(.bcp47))
-        else { return nil }
-        return [primary, second]
+        guard installed.contains(primary.identifier(.bcp47)) else {
+            return .unavailable("Second language not used: Apple's newer model for \(AppleAnalyzer.name(primary)) isn't on this \(Device.name) yet (Settings › Speech model).")
+        }
+        guard installed.contains(second.identifier(.bcp47)) else {
+            return .unavailable("Second language not used: \(secondName)'s model isn't on this \(Device.name) yet. Get it in Settings › Languages.")
+        }
+        return .ready([primary, second])
+    }
+
+    /// This device's language and the second language from Settings, when
+    /// both can be used. Nil means dictate in one language as usual.
+    static func languages() async -> [Locale]? {
+        if case let .ready(locales) = await availability() { return locales }
+        return nil
     }
 
     /// Both models started, ready for one recording's first pass.
@@ -65,13 +89,19 @@ enum AppleBilingual {
         var passes = 1
         let first = try await words(samples, sampleRate: sampleRate, session: prepared)
         let codes = locales.map { $0.language.languageCode?.identifier ?? $0.identifier }
+        // What each language's model made of the whole dictation alone, for
+        // History's details.
+        let heard = first.indices.map {
+            LanguageBreakdown.Part(language: ids[$0], start: 0, end: duration, text: text(first[$0]),
+                                   confidence: Bilingual.meanConfidence(first[$0]))
+        }
 
         func whole(_ language: Int, method: LanguageBreakdown.Method, keptWhole: Bool = false) -> (String, LanguageBreakdown) {
             let words = first[language]
             let part = LanguageBreakdown.Part(language: ids[language], start: 0, end: duration, text: text(words),
                                               confidence: Bilingual.meanConfidence(words))
             return (part.text, LanguageBreakdown(languages: ids, method: method, parts: [part], passes: passes,
-                                                 keptWhole: keptWhole ? ids[language] : nil))
+                                                 keptWhole: keptWhole ? ids[language] : nil, heard: heard))
         }
 
         switch Bilingual.strategy(codes[0], codes[1]) {
@@ -112,7 +142,7 @@ enum AppleBilingual {
             guard Bilingual.meanConfidence(result) > Bilingual.meanConfidence(first[best]) else {
                 return whole(best, method: .windows, keptWhole: true)
             }
-            return (text(result), LanguageBreakdown(languages: ids, method: .windows, parts: parts, passes: passes, keptWhole: nil))
+            return (text(result), LanguageBreakdown(languages: ids, method: .windows, parts: parts, passes: passes, keptWhole: nil, heard: heard))
 
         case let .script(base):
             let words = first[base]
@@ -151,7 +181,7 @@ enum AppleBilingual {
             }
             let rest = Array(words[next...])
             add(base, rest, as: rest.map(\.text).joined())
-            return (Bilingual.join(pieces), LanguageBreakdown(languages: ids, method: .script, parts: parts, passes: passes, keptWhole: nil))
+            return (Bilingual.join(pieces), LanguageBreakdown(languages: ids, method: .script, parts: parts, passes: passes, keptWhole: nil, heard: heard))
         }
     }
 

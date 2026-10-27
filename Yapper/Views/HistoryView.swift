@@ -299,6 +299,8 @@ struct DictationDetailView: View {
     @State var record: DictationRecord
     let onDelete: () -> Void
     @State private var copied = false
+    @State private var showDetails = false
+    @State private var detailsCopied = false
     @State private var shareError: String?
     @StateObject private var player = RecordingPlayer()
     @Environment(\.dismiss) private var dismiss
@@ -365,6 +367,8 @@ struct DictationDetailView: View {
                         }
                     }
 
+                    details
+
                     Button("Delete", role: .destructive, action: onDelete)
                         .font(Theme.font(15, .medium))
                         .foregroundStyle(Theme.errorFg)
@@ -384,6 +388,42 @@ struct DictationDetailView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(shareError ?? "")
+            }
+        }
+    }
+
+    /// Everything Yapper knows about how this dictation ran, as plain text
+    /// to copy into a bug report. Nothing leaves the iPhone unless the user
+    /// pastes it somewhere.
+    @ViewBuilder
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) { showDetails.toggle() }
+            } label: {
+                HStack {
+                    SectionLabel(text: "Details")
+                    Spacer()
+                    Text(showDetails ? "Hide" : "Show")
+                        .font(Theme.font(13, .medium))
+                        .foregroundStyle(Theme.textMuted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showDetails {
+                Text(record.debugReport)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Theme.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).fill(Theme.fillInput))
+                Button(detailsCopied ? "Copied" : "Copy details") {
+                    Clipboard.copy(record.debugReport)
+                    detailsCopied = true
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
         }
     }
@@ -496,6 +536,48 @@ struct DictationDetailView: View {
             .padding(.vertical, 10)
             Hairline()
         }
+    }
+}
+
+extension DictationRecord {
+    /// How this dictation ran, for Details: the app, the settings now, the
+    /// engine, and for two languages what each model heard and how the
+    /// parts were chosen.
+    var debugReport: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        func time(_ seconds: Double) -> String { String(format: "%.1f s", seconds) }
+        func percent(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
+        var lines = [
+            "Yapper \(version) (\(build)) · \(ProcessInfo.processInfo.operatingSystemVersionString)",
+            "When: \(date.formatted(.iso8601))",
+            "Engine: \(engine)\(model.map { " · \($0)" } ?? "")",
+            "Audio: \(time(duration))\(processingTime.map { " · transcribed in \(String(format: "%.2f s", $0))" } ?? "")",
+            "This \(Device.name)'s language: \(Locale.current.identifier)",
+            "Speech model now: \(ModelChoice.current.title)",
+            "Second language now: \(Settings.secondLanguage ?? "none")",
+        ]
+        if let note { lines.append("Note: \(note)") }
+        if let error { lines.append("Error: \(error)") }
+        if let languages {
+            lines.append("")
+            lines.append("Two languages: \(languages.languages.joined(separator: " + ")) · \(languages.method.rawValue) · \(languages.passes) passes"
+                         + (languages.keptWhole.map { " · kept whole in \($0)" } ?? ""))
+            for heard in languages.heard ?? [] {
+                lines.append("Heard by \(heard.language) alone (\(percent(heard.confidence)) sure): \(heard.text)")
+            }
+            for part in languages.parts {
+                lines.append(String(format: "Part %.1f–%.1f s ", part.start, part.end)
+                             + "\(part.language) (\(percent(part.confidence)) sure): \(part.text)")
+            }
+        } else if Settings.secondLanguage != nil, error == nil {
+            lines.append("Two languages: not used for this dictation")
+        }
+        lines.append("")
+        lines.append("Before cleanup: \(raw)")
+        lines.append("Text: \(text)")
+        return lines.joined(separator: "\n")
     }
 }
 

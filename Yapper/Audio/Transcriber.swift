@@ -291,18 +291,18 @@ actor Transcriber {
         let started = Date()
 
         if preferred == .apple {
-            let (text, engine, languages) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
-                                                                             prepared: takePreparedApple())
+            let (text, engine, languages, note) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                                   prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: ModelChoice.apple.title,
-                          processingTime: Date().timeIntervalSince(started), note: nil, languages: languages)
+                          processingTime: Date().timeIntervalSince(started), note: note, languages: languages)
         }
 
         guard let asr, let choice = loadedChoice else {
             guard allowApple else { throw TranscriberError.parakeetUnavailable(fallbackReason) }
-            let (text, engine, languages) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
-                                                                             prepared: takePreparedApple())
+            let (text, engine, languages, note) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                                   prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: nil, processingTime: Date().timeIntervalSince(started),
-                          note: fallbackReason, languages: languages)
+                          note: [fallbackReason, note].compactMap { $0 }.joined(separator: " "), languages: languages)
         }
 
         var audio = sampleRate == Self.parakeetSampleRate
@@ -379,13 +379,18 @@ enum AppleSpeech {
     }
 
     /// Transcribes with the newer model when it can, the older one otherwise,
-    /// and says which one did it, and how a dictation in two languages was split. `prepared` is a readied
+    /// and says which one did it, how a dictation in two languages was split,
+    /// and why a second language wasn't used when it's set. `prepared` is a readied
     /// `AppleAnalyzer.Prepared`, when there is one.
     static func transcribe(_ samples: [Float], sampleRate: Double,
-                           prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine, languages: LanguageBreakdown?) {
+                           prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine, languages: LanguageBreakdown?, note: String?) {
         if #available(iOS 26.0, macOS 26.0, *) {
-            // A second language set in Settings: both models listen.
-            if let languages = await AppleBilingual.languages() {
+            // A second language set in Settings: both models listen. When
+            // it's set but can't be used, the dictation says why.
+            let availability = await AppleBilingual.availability()
+            let note: String?
+            if case let .unavailable(reason) = availability { note = reason } else { note = nil }
+            if case let .ready(languages) = availability {
                 let session: AppleBilingual.Prepared
                 if let ready = prepared as? AppleBilingual.Prepared, ready.locales == languages {
                     session = ready
@@ -393,16 +398,17 @@ enum AppleSpeech {
                     session = try await AppleBilingual.prepare(languages)
                 }
                 let (text, breakdown) = try await AppleBilingual.transcribe(samples, sampleRate: sampleRate, prepared: session)
-                return (text, .appleAnalyzer, breakdown)
+                return (text, .appleAnalyzer, breakdown, nil)
             }
             if let prepared = prepared as? AppleAnalyzer.Prepared {
-                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer, nil)
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer, nil, note)
             }
             if await AppleAnalyzer.state() == .installed {
-                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer, nil)
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer, nil, note)
             }
+            return (try await recognize(samples, sampleRate: sampleRate), .apple, nil, note)
         }
-        return (try await recognize(samples, sampleRate: sampleRate), .apple, nil)
+        return (try await recognize(samples, sampleRate: sampleRate), .apple, nil, nil)
     }
 
     /// The older recognizer. Apple documents it as stopping after a minute of
