@@ -205,6 +205,7 @@ targets:
       - path: Shared/Common/LevelFeed.swift
       - path: Shared/Common/LevelMeter.swift
       - path: Yapper/Audio/AudioChunks.swift
+      - path: Yapper/Audio/Bilingual.swift
       - path: Yapper/Audio/RecordingEncoder.swift
       - path: Yapper/History/HistoryExport.swift
     settings:
@@ -287,6 +288,8 @@ targets:
       - path: Shared/Fonts
         buildPhase: resources
       - path: Yapper/Audio/Transcriber.swift
+      - path: Yapper/Audio/AppleBilingual.swift
+      - path: Yapper/Audio/Bilingual.swift
       - path: Yapper/Audio/AudioChunks.swift
       - path: Yapper/Audio/RecordingEncoder.swift
       - path: Yapper/Audio/RecordingStore.swift

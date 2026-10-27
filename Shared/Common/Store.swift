@@ -20,6 +20,7 @@ enum Settings {
         static let appleWhileLoading = "settings.appleWhileLoading"
         static let loadTimings = "settings.loadTimings"
         static let returnToApp = "settings.returnToApp"
+        static let secondLanguage = "settings.secondLanguage"
     }
 
     private static var defaults: UserDefaults { Bridge.defaults }
@@ -59,6 +60,14 @@ enum Settings {
     static var returnToApp: Bool {
         get { defaults.object(forKey: Key.returnToApp) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.returnToApp) }
+    }
+
+    /// A second language to dictate in, as a locale identifier ("es-US"),
+    /// alongside this device's own. Nil (the default) listens for one.
+    /// Apple on-device only.
+    static var secondLanguage: String? {
+        get { defaults.string(forKey: Key.secondLanguage) }
+        set { defaults.set(newValue, forKey: Key.secondLanguage) }
     }
 
     static var haptics: Bool {
