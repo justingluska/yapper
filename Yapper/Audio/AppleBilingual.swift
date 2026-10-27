@@ -56,17 +56,29 @@ enum AppleBilingual {
         return Prepared(locales: locales, transcribers: transcribers, analyzer: analyzer, format: format)
     }
 
-    static func transcribe(_ samples: [Float], sampleRate: Double, prepared: Prepared) async throws -> String {
+    /// The text, and how it was split, for History.
+    static func transcribe(_ samples: [Float], sampleRate: Double,
+                           prepared: Prepared) async throws -> (text: String, breakdown: LanguageBreakdown) {
         let locales = prepared.locales
+        let ids = locales.map { $0.identifier(.bcp47) }
         let duration = Double(samples.count) / sampleRate
+        var passes = 1
         let first = try await words(samples, sampleRate: sampleRate, session: prepared)
         let codes = locales.map { $0.language.languageCode?.identifier ?? $0.identifier }
 
+        func whole(_ language: Int, method: LanguageBreakdown.Method, keptWhole: Bool = false) -> (String, LanguageBreakdown) {
+            let words = first[language]
+            let part = LanguageBreakdown.Part(language: ids[language], start: 0, end: duration, text: text(words),
+                                              confidence: Bilingual.meanConfidence(words))
+            return (part.text, LanguageBreakdown(languages: ids, method: method, parts: [part], passes: passes,
+                                                 keptWhole: keptWhole ? ids[language] : nil))
+        }
+
         switch Bilingual.strategy(codes[0], codes[1]) {
         case .windows:
-            let single = first.max { Bilingual.meanConfidence($0) < Bilingual.meanConfidence($1) } ?? []
+            let best = first.indices.max { Bilingual.meanConfidence(first[$0]) < Bilingual.meanConfidence(first[$1]) } ?? 0
             let cuts = Bilingual.windowCuts(first, duration: duration)
-            guard !cuts.isEmpty else { return text(single) }
+            guard !cuts.isEmpty else { return whole(best, method: .windows) }
 
             // Each window's language, from both models hearing just it.
             let bounds = [0] + cuts + [duration]
@@ -75,41 +87,71 @@ enum AppleBilingual {
                 let heard = try await piece(samples, sampleRate: sampleRate, start: bounds[index], end: bounds[index + 1],
                                             padding: Bilingual.windowPadding, duration: duration, locales: locales,
                                             isFirst: index == 0, isLast: index == bounds.count - 2)
+                passes += 1
                 languages.append(Bilingual.language(of: heard, previous: languages.last))
             }
             let regions = Bilingual.regions(cuts: cuts, languages: languages, duration: duration)
-            guard regions.count > 1 else { return text(first[regions.first?.language ?? 0]) }
+            guard regions.count > 1 else { return whole(regions.first?.language ?? best, method: .windows) }
 
             // Each region in its own language.
+            var parts: [LanguageBreakdown.Part] = []
             var result: [Bilingual.Word] = []
             for (index, region) in regions.enumerated() {
                 let heard = try await piece(samples, sampleRate: sampleRate, start: region.start, end: region.end,
                                             padding: Bilingual.windowPadding, duration: duration,
                                             locales: [locales[region.language]],
-                                            isFirst: index == 0, isLast: index == regions.count - 1)
-                result += heard[0]
+                                            isFirst: index == 0, isLast: index == regions.count - 1)[0]
+                passes += 1
+                result += heard
+                parts.append(LanguageBreakdown.Part(language: ids[region.language], start: region.start, end: region.end,
+                                                    text: text(heard), confidence: Bilingual.meanConfidence(heard)))
             }
             // Keep the split only when the models are surer of it than of
             // the best single language: a dictation in one language with a
             // borrowed word or two reads better left whole.
-            return Bilingual.meanConfidence(result) > Bilingual.meanConfidence(single) ? text(result) : text(single)
+            guard Bilingual.meanConfidence(result) > Bilingual.meanConfidence(first[best]) else {
+                return whole(best, method: .windows, keptWhole: true)
+            }
+            return (text(result), LanguageBreakdown(languages: ids, method: .windows, parts: parts, passes: passes, keptWhole: nil))
 
         case let .script(base):
             let words = first[base]
-            let other = locales[1 - base]
+            let other = 1 - base
             var pieces: [String] = []
+            var parts: [LanguageBreakdown.Part] = []
+            func add(_ language: Int, _ words: [Bilingual.Word], as piece: String) {
+                guard let firstWord = words.first, let lastWord = words.last else { return }
+                pieces.append(piece)
+                let part = LanguageBreakdown.Part(language: ids[language], start: firstWord.start, end: lastWord.end,
+                                                  text: Bilingual.join([piece]), confidence: Bilingual.meanConfidence(words))
+                if let last = parts.last, last.language == part.language {
+                    parts[parts.count - 1].end = part.end
+                    parts[parts.count - 1].text = Bilingual.join([last.text, piece])
+                } else {
+                    parts.append(part)
+                }
+            }
             var next = 0
             for span in Bilingual.latinSpans(words) {
-                pieces += words[next..<span.lowerBound].map(\.text)
+                let before = Array(words[next..<span.lowerBound])
+                add(base, before, as: before.map(\.text).joined())
                 let own = Array(words[span])
                 let redo = try await piece(samples, sampleRate: sampleRate, start: own[0].start, end: own[own.count - 1].end,
-                                           padding: Bilingual.spanPadding, duration: duration, locales: [other],
+                                           padding: Bilingual.spanPadding, duration: duration, locales: [locales[other]],
                                            isFirst: false, isLast: false)[0]
-                pieces.append(Bilingual.shouldSplice(own: own, redo: redo) ? Bilingual.spliced(text(redo)) : own.map(\.text).joined())
+                passes += 1
+                if Bilingual.shouldSplice(own: own, redo: redo) {
+                    add(other, redo, as: Bilingual.spliced(text(redo)))
+                } else {
+                    // The base model's own spelling stays, but it's still the
+                    // other language being spoken.
+                    add(other, own, as: own.map(\.text).joined())
+                }
                 next = span.upperBound + 1
             }
-            pieces += words[next...].map(\.text)
-            return Bilingual.join(pieces)
+            let rest = Array(words[next...])
+            add(base, rest, as: rest.map(\.text).joined())
+            return (Bilingual.join(pieces), LanguageBreakdown(languages: ids, method: .script, parts: parts, passes: passes, keptWhole: nil))
         }
     }
 

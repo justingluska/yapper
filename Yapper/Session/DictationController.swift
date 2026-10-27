@@ -460,6 +460,7 @@ final class DictationController: ObservableObject {
                 updated.model = output.model
                 updated.processingTime = output.processingTime
                 updated.note = output.note
+                updated.languages = output.languages
                 updated.error = nil
                 Clipboard.copy(text)
             }
@@ -723,7 +724,8 @@ final class DictationController: ObservableObject {
                         id: id, text: text, raw: output.text, duration: duration, engine: output.engine.rawValue,
                         model: output.model, processingTime: output.processingTime,
                         note: interrupted ? [Self.interruptedNote, output.note].compactMap { $0 }.joined(separator: " ") : output.note,
-                        audioFile: RecordingStore.save(samples, sampleRate: rate, id: id)
+                        audioFile: RecordingStore.save(samples, sampleRate: rate, id: id),
+                        languages: output.languages
                     ))
                     if interrupted {
                         errorMessage = "A call or Siri stopped Yapper mid-dictation. What you said before it is in History and on the clipboard."

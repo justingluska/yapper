@@ -340,6 +340,10 @@ struct DictationDetailView: View {
                         row("When", record.date.formatted(date: .abbreviated, time: .shortened))
                     }
 
+                    if let languages = record.languages, !record.failed {
+                        LanguageBreakdownView(breakdown: languages, duration: record.duration)
+                    }
+
                     if let kind = record.engineKind, !record.failed {
                         Text(kind.explanation)
                             .font(Theme.font(14))
@@ -492,6 +496,111 @@ struct DictationDetailView: View {
             .padding(.vertical, 10)
             Hairline()
         }
+    }
+}
+
+/// How a dictation in two languages was split: a timeline of which
+/// language each part was in, the parts, and how Yapper decided.
+struct LanguageBreakdownView: View {
+    let breakdown: LanguageBreakdown
+    let duration: TimeInterval
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel(text: "Languages")
+            timeline
+            HStack(spacing: 14) {
+                ForEach(breakdown.languages, id: \.self) { language in
+                    HStack(spacing: 6) {
+                        Circle().fill(color(language)).frame(width: 8, height: 8)
+                        Text(name(language))
+                    }
+                }
+            }
+            .font(Theme.font(13))
+            .foregroundStyle(Theme.textMuted)
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(breakdown.parts.enumerated()), id: \.offset) { _, part in
+                    HStack(alignment: .top, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(color(part.language))
+                            .frame(width: 4)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(time(part.start))–\(time(part.end)) · \(name(part.language)) · \(Int((part.confidence * 100).rounded()))% sure")
+                                .font(Theme.font(12))
+                                .monospacedDigit()
+                                .foregroundStyle(Theme.textMuted)
+                            Text(part.text)
+                                .font(Theme.font(15))
+                                .foregroundStyle(Theme.text)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+
+            Text(summary)
+                .font(Theme.font(14))
+                .foregroundStyle(Theme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The recording as a bar, each part in its language's color.
+    private var timeline: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3).fill(Theme.fillInput)
+                ForEach(Array(breakdown.parts.enumerated()), id: \.offset) { _, part in
+                    let total = max(duration, breakdown.parts.map(\.end).max() ?? 0, 0.1)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(color(part.language))
+                        .frame(width: max(2, geometry.size.width * (part.end - part.start) / total))
+                        .offset(x: geometry.size.width * part.start / total)
+                }
+            }
+        }
+        .frame(height: 10)
+        .accessibilityHidden(true)
+    }
+
+    private var summary: String {
+        let names = breakdown.languages.map(name)
+        let both = names.joined(separator: " and ")
+        let passes = "Apple's model listened \(breakdown.passes) times in all, on this iPhone."
+        switch breakdown.method {
+        case .windows:
+            if let kept = breakdown.keptWhole {
+                return "Yapper listened in \(both) and found what might be a switch, but Apple's model was surer of the whole dictation in \(name(kept)), so it kept that. \(passes)"
+            }
+            if breakdown.parts.count < 2 {
+                return "Yapper listened in \(both) and heard only \(breakdown.parts.first.map { name($0.language) } ?? names[0]). \(passes)"
+            }
+            return "Yapper listened in \(both), cut the recording into short windows, gave each window to the language whose model was surer of it, then transcribed each stretch in its own language. \(passes)"
+        case .script:
+            let base = breakdown.parts.first.map(\.language) ?? breakdown.languages[0]
+            let other = breakdown.languages.first { $0 != base } ?? breakdown.languages[1]
+            let switches = breakdown.parts.filter { $0.language == other }.count
+            if switches == 0 {
+                return "Yapper listened in \(both) and heard only \(name(base)). \(passes)"
+            }
+            return "\(name(base))'s model writes the \(name(other)) it hears in Latin letters, often misspelled. Yapper had the \(name(other)) model redo those parts (\(switches) here) and kept its words where it was sure of them. \(passes)"
+        }
+    }
+
+    private func name(_ language: String) -> String {
+        Locale.current.localizedString(forIdentifier: language) ?? language
+    }
+
+    /// This iPhone's language in gray, the second language in blue.
+    private func color(_ language: String) -> Color {
+        language == breakdown.languages.first ? Theme.textFaint : Theme.ready
+    }
+
+    private func time(_ seconds: Double) -> String {
+        String(format: "%d:%04.1f", Int(seconds) / 60, seconds.truncatingRemainder(dividingBy: 60))
     }
 }
 
