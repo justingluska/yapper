@@ -73,6 +73,9 @@ cap how much you can say before you pay. Yapper does none of that.
   transcription), readied when the engine turns on so the first words don't wait for it
 - **Parakeet Ultra** (632 MB download, can be more accurate) or **Parakeet v3** (480 MB), optional, on the Neural Engine
 - No length limit, and a phone call mid-dictation keeps what you said before it (in History and on the clipboard)
+- **Two languages, even mid-sentence** (Apple on-device, iOS 26): pick a second language and switch between it and
+  your iPhone's whenever you like ("I need to go al supermercado before it closes"). Apple's model hears one language at
+  a time, so Yapper runs both and keeps each part from the one that understood it ([how](Yapper/Audio/Bilingual.swift))
 - **Don't wait for Parakeet**: while Parakeet loads, Apple on-device takes your dictations straight away
 - Loading shows each step and, after the first time, a progress bar and the time left, measured from the last load
 - Every dictation records which engine transcribed it, and why

@@ -48,6 +48,10 @@ final class DictationController: ObservableObject {
     /// the progress of its download while iOS fetches it.
     @Published private(set) var appleModel: AppleAnalyzer.State = .unsupported
     @Published private(set) var appleModelProgress: Double?
+    /// The second language's model (Settings › Second language), and the
+    /// progress of its download.
+    @Published private(set) var secondLanguageModel: AppleAnalyzer.State = .unsupported
+    @Published private(set) var secondLanguageProgress: Double?
     /// Bumped whenever History changes, so its views reload.
     @Published private(set) var historyVersion = 0
     /// True while a saved recording is being transcribed again.
@@ -123,7 +127,52 @@ final class DictationController: ObservableObject {
 
     func refreshDownloadedModels() {
         downloadedModels = Set(ModelChoice.allCases.filter { Transcriber.isDownloaded($0) })
-        Task { appleModel = await AppleAnalyzer.state() }
+        Task {
+            appleModel = await AppleAnalyzer.state()
+            secondLanguageModel = await secondLanguageState()
+        }
+    }
+
+    private func secondLanguageState() async -> AppleAnalyzer.State {
+        guard let id = Settings.secondLanguage else { return .unsupported }
+        return await AppleAnalyzer.state(for: Locale(identifier: id))
+    }
+
+    /// Sets the language to dictate in alongside this iPhone's own, or none,
+    /// and fetches its model from Apple when it isn't on the iPhone yet.
+    func setSecondLanguage(_ id: String?) async {
+        let previous = Settings.secondLanguage
+        guard id != previous else { return }
+        Settings.secondLanguage = id
+        if let previous { await AppleAnalyzer.release(Locale(identifier: previous)) }
+        secondLanguageModel = await secondLanguageState()
+        // The readied model listens for the old languages.
+        await transcriber.releaseApple()
+        if secondLanguageModel == .notInstalled {
+            await installSecondLanguage()
+        } else {
+            prepareApple()
+        }
+    }
+
+    /// Asks iOS to download the second language's model from Apple.
+    func installSecondLanguage() async {
+        guard #available(iOS 26.0, *), let id = Settings.secondLanguage, secondLanguageProgress == nil else { return }
+        secondLanguageProgress = 0
+        defer { secondLanguageProgress = nil }
+        do {
+            try await AppleAnalyzer.install(Locale(identifier: id)) { progress in
+                Task { @MainActor [weak self] in
+                    guard let self, self.secondLanguageProgress != nil else { return }
+                    self.secondLanguageProgress = progress
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        secondLanguageModel = await secondLanguageState()
+        await transcriber.releaseApple()
+        prepareApple()
     }
 
     /// Asks iOS to download Apple's newer speech model for this iPhone's
