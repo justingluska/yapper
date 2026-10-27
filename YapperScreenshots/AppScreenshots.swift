@@ -215,8 +215,9 @@ final class AppScreenshots: XCTestCase {
     /// The App Store set, light and dark: Home on, its help, History,
     /// stats and Cleanup, with the keyboard set up. The keyboard and
     /// onboarding shots come from KeyboardScreenshots and testOnboarding.
+    /// The App Store set: light mode only.
     func testAppStore() {
-        for dark in [false, true] {
+        for dark in [false] {
             let suffix = dark ? "dark" : "light"
             let app = XCUIApplication()
             app.launchArguments = ["-screenshots", "-sampleHistory", "-homeState", "on", "-keyboardAdded"] + (dark ? ["-dark"] : [])
@@ -230,6 +231,16 @@ final class AppScreenshots: XCTestCase {
 
             app.tabBars.buttons["History"].tap()
             attach(app, name: "appstore-history-\(suffix)")
+            // The sample dictation in two languages, with how it was split.
+            app.cells.element(boundBy: 1).tap()
+            let languages = app.staticTexts["LANGUAGES"].firstMatch
+            if languages.waitForExistence(timeout: 2) {
+                scroll(app, to: languages)
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+            attach(app, name: "appstore-two-languages-\(suffix)")
+            app.navigationBars.buttons["Done"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 0.5)
             app.tabBars.buttons["Settings"].tap()
             attach(app, name: "appstore-stats-\(suffix)")
             let cleanup = app.switches["Remove stutters (\"I I think\")"].firstMatch
