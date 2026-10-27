@@ -55,11 +55,48 @@ struct DictationRecord: Codable, Identifiable, Hashable {
     /// The saved recording's file name, while Yapper keeps it (Settings ›
     /// Keep recordings). Nil once it's gone.
     var audioFile: String?
+    /// How a dictation in two languages was split up, when a second
+    /// language is on (Settings › Languages). Nil otherwise.
+    var languages: LanguageBreakdown? = nil
 
     var failed: Bool { error != nil }
     var engineKind: Engine? { Engine(rawValue: engine) }
     var engineLabel: String { engineKind?.label ?? engine }
     var wordCount: Int { text.split(whereSeparator: \.isWhitespace).count }
+}
+
+/// How Yapper heard a dictation in two languages, for History: which
+/// language each part was in, and how it decided.
+struct LanguageBreakdown: Codable, Hashable {
+    enum Method: String, Codable {
+        /// Short windows, each given to the language whose model was surer.
+        case windows
+        /// The non-Latin language's model, with its Latin-letter stretches
+        /// redone in the other language.
+        case script
+    }
+
+    /// A stretch of the dictation in one language.
+    struct Part: Codable, Hashable {
+        /// A locale identifier, "es-US".
+        var language: String
+        /// Seconds into the recording.
+        var start: Double
+        var end: Double
+        var text: String
+        /// How sure that language's model was of these words, 0...1.
+        var confidence: Double
+    }
+
+    /// The two languages listened for, this iPhone's first.
+    var languages: [String]
+    var method: Method
+    var parts: [Part]
+    /// How many times a model listened to some or all of the recording.
+    var passes: Int
+    /// The split was found but not used: the whole dictation in one
+    /// language read as surer. The language it was kept in.
+    var keptWhole: String?
 }
 
 /// One day's totals in Stats.

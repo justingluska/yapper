@@ -203,6 +203,65 @@ struct ModelsSection: View {
                  : "While no Parakeet model is ready, Apple's on-device recognizer fills in. A dictation made while Parakeet is still loading waits for it, with a button to use Apple's instead. History says which engine did each dictation, and why.")
                 .padding(.top, 4)
         }
+        } else if controller.appleModel != .unsupported {
+            SecondLanguageSection()
+        }
+    }
+}
+
+/// A second language for Apple on-device: speak either, switching whenever
+/// you like, even mid-sentence. See `Bilingual` for how.
+struct SecondLanguageSection: View {
+    @EnvironmentObject private var controller: DictationController
+    @State private var choices: [Locale] = []
+    @State private var selection = Settings.secondLanguage ?? ""
+
+    var body: some View {
+        Section {
+            Picker("Second language", selection: $selection) {
+                Text("None").tag("")
+                ForEach(choices, id: \.self) { locale in
+                    Text(AppleAnalyzer.name(locale)).tag(locale.identifier(.bcp47))
+                }
+            }
+            .pickerStyle(.navigationLink)
+            .onChange(of: selection) { _, value in
+                Task { await controller.setSecondLanguage(value.isEmpty ? nil : value) }
+            }
+            if !selection.isEmpty {
+                status
+            }
+        } header: {
+            SectionLabel(text: "Languages")
+        } footer: {
+            Text("Talk in your iPhone's language and this one, and switch whenever you like, even mid-sentence. Apple's model listens for one language at a time, so Yapper runs both and keeps each part from the one that understood it. iOS downloads the second language's model from Apple once; what you say never leaves your iPhone.")
+                .padding(.top, 4)
+        }
+        .task { choices = await AppleAnalyzer.secondLanguageChoices() }
+    }
+
+    @ViewBuilder private var status: some View {
+        if let progress = controller.secondLanguageProgress {
+            ProgressView(value: progress)
+                .tint(Theme.textEmphasis)
+        } else {
+            switch controller.secondLanguageModel {
+            case .installed:
+                Text("Ready")
+                    .font(Theme.font(13))
+                    .foregroundStyle(Theme.textMuted)
+            case .notInstalled:
+                Button {
+                    Task { await controller.installSecondLanguage() }
+                } label: {
+                    Label("Get its model from Apple", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            case .unsupported:
+                Text("Apple's model doesn't have this language on this \(Device.name).")
+                    .font(Theme.font(13))
+                    .foregroundStyle(Theme.errorFg)
+            }
         }
     }
 }

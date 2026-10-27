@@ -242,7 +242,8 @@ final class MacDictation: ObservableObject {
                     HistoryStore.append(DictationRecord(
                         id: id, text: text, raw: output.text, duration: duration, engine: output.engine.rawValue,
                         model: output.model, processingTime: output.processingTime, note: output.note,
-                        audioFile: RecordingStore.save(samples, sampleRate: rate, id: id)
+                        audioFile: RecordingStore.save(samples, sampleRate: rate, id: id),
+                        languages: output.languages
                     ))
                     StatsStore.record(words: text.split(whereSeparator: \.isWhitespace).count, seconds: duration)
                 }

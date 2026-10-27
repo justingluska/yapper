@@ -35,6 +35,19 @@ struct YapperApp: App {
                 duration: Double(text.count) / 14, engine: Engine.appleAnalyzer.rawValue,
                 model: "Apple on-device", processingTime: 0.21))
         }
+        // A dictation in two languages, second in the list so the History
+        // detail screenshot shows how it was split.
+        let mixed = "We should totally go to the beach este fin de semana con los niños."
+        records.insert(DictationRecord(
+            date: Date().addingTimeInterval(-2_700), text: mixed, raw: mixed, duration: 4.9,
+            engine: Engine.appleAnalyzer.rawValue, model: "Apple on-device", processingTime: 0.38,
+            languages: LanguageBreakdown(
+                languages: ["en-US", "es-US"], method: .windows,
+                parts: [
+                    .init(language: "en-US", start: 0, end: 2.6, text: "We should totally go to the beach", confidence: 0.93),
+                    .init(language: "es-US", start: 2.6, end: 4.9, text: "este fin de semana con los niños.", confidence: 0.91),
+                ],
+                passes: 6, keptWhole: nil)), at: 1)
         if ProcessInfo.processInfo.arguments.contains("-sampleHistory") {
             let older: [(days: Double, text: String, recording: Bool)] = [
                 (1, "Okay, so here's the plan for Saturday. We meet at the trailhead at eight, not seven thirty, because the parking lot doesn't open until quarter to. Bring two liters of water each, more if it's hot, and something salty for the top. The loop is about eleven miles with the long climb in the first three, so we'll take it slow and stop at the creek crossing for a snack. If it rains on Friday night the lower trail turns to mud, and in that case we'll do the ridge route instead, which is shorter but steeper. I'll text everyone by nine on Friday either way. Sam is driving the second car and can take four people plus packs. After the hike there's that taco place near the gas station that opens at two, and I already called ahead for a table for eight. If anyone needs to bail, just tell me by Thursday so I can fix the reservation. Last thing: wear real boots, not running shoes, the descent is loose gravel the whole way down.", true),

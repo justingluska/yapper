@@ -116,6 +116,8 @@ actor Transcriber {
         var model: String?
         var processingTime: TimeInterval
         var note: String?
+        /// How a dictation in two languages was split, when it was.
+        var languages: LanguageBreakdown? = nil
     }
 
     var isParakeetReady: Bool { asr != nil }
@@ -256,10 +258,15 @@ actor Transcriber {
     /// model itself and reports any error then.
     func prepareApple() async {
         guard #available(iOS 26.0, macOS 26.0, *), preparedApple == nil,
-              await AppleAnalyzer.state() == .installed,
-              let prepared = try? await AppleAnalyzer.prepare(),
-              preparedApple == nil
+              await AppleAnalyzer.state() == .installed
         else { return }
+        let prepared: AnyObject?
+        if let languages = await AppleBilingual.languages() {
+            prepared = try? await AppleBilingual.prepare(languages)
+        } else {
+            prepared = try? await AppleAnalyzer.prepare()
+        }
+        guard let prepared, preparedApple == nil else { return }
         preparedApple = prepared
     }
 
@@ -284,18 +291,18 @@ actor Transcriber {
         let started = Date()
 
         if preferred == .apple {
-            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
-                                                                  prepared: takePreparedApple())
+            let (text, engine, languages) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                             prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: ModelChoice.apple.title,
-                          processingTime: Date().timeIntervalSince(started), note: nil)
+                          processingTime: Date().timeIntervalSince(started), note: nil, languages: languages)
         }
 
         guard let asr, let choice = loadedChoice else {
             guard allowApple else { throw TranscriberError.parakeetUnavailable(fallbackReason) }
-            let (text, engine) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
-                                                                  prepared: takePreparedApple())
+            let (text, engine, languages) = try await AppleSpeech.transcribe(samples, sampleRate: sampleRate,
+                                                                             prepared: takePreparedApple())
             return Output(text: text, engine: engine, model: nil, processingTime: Date().timeIntervalSince(started),
-                          note: fallbackReason)
+                          note: fallbackReason, languages: languages)
         }
 
         var audio = sampleRate == Self.parakeetSampleRate
@@ -372,19 +379,30 @@ enum AppleSpeech {
     }
 
     /// Transcribes with the newer model when it can, the older one otherwise,
-    /// and says which one did it. `prepared` is a readied
+    /// and says which one did it, and how a dictation in two languages was split. `prepared` is a readied
     /// `AppleAnalyzer.Prepared`, when there is one.
     static func transcribe(_ samples: [Float], sampleRate: Double,
-                           prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine) {
+                           prepared: AnyObject? = nil) async throws -> (text: String, engine: Engine, languages: LanguageBreakdown?) {
         if #available(iOS 26.0, macOS 26.0, *) {
+            // A second language set in Settings: both models listen.
+            if let languages = await AppleBilingual.languages() {
+                let session: AppleBilingual.Prepared
+                if let ready = prepared as? AppleBilingual.Prepared, ready.locales == languages {
+                    session = ready
+                } else {
+                    session = try await AppleBilingual.prepare(languages)
+                }
+                let (text, breakdown) = try await AppleBilingual.transcribe(samples, sampleRate: sampleRate, prepared: session)
+                return (text, .appleAnalyzer, breakdown)
+            }
             if let prepared = prepared as? AppleAnalyzer.Prepared {
-                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer)
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate, prepared: prepared), .appleAnalyzer, nil)
             }
             if await AppleAnalyzer.state() == .installed {
-                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer)
+                return (try await AppleAnalyzer.transcribe(samples, sampleRate: sampleRate), .appleAnalyzer, nil)
             }
         }
-        return (try await recognize(samples, sampleRate: sampleRate), .apple)
+        return (try await recognize(samples, sampleRate: sampleRate), .apple, nil)
     }
 
     /// The older recognizer. Apple documents it as stopping after a minute of
@@ -464,10 +482,11 @@ enum AppleAnalyzer {
         }
     }
 
-    static func state() async -> State {
+    /// The model for `locale`, this iPhone's language unless said otherwise.
+    static func state(for language: Locale = .current) async -> State {
         guard #available(iOS 26.0, macOS 26.0, *) else { return .unsupported }
         guard SpeechTranscriber.isAvailable,
-              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
+              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: language)
         else { return .unsupported }
         let installed = await SpeechTranscriber.installedLocales
         let id = locale.identifier(.bcp47)
@@ -477,11 +496,16 @@ enum AppleAnalyzer {
     /// Asks iOS to download the model for this iPhone's language. `onProgress`
     /// gets 0...1. The download is Apple's, between iOS and Apple, like the
     /// files for the system's own dictation; no audio is involved.
+    /// `language` is this iPhone's unless said otherwise (a second language).
     @available(iOS 26.0, macOS 26.0, *)
-    static func install(onProgress: @escaping @Sendable (Double) -> Void) async throws {
-        guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) else {
+    static func install(_ language: Locale = .current, onProgress: @escaping @Sendable (Double) -> Void) async throws {
+        guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: language) else {
             throw AnalyzerError.unavailable
         }
+        // iOS only downloads a language's model for an app that has reserved
+        // it (at most `AssetInventory.maximumReservedLocales`); a no-op when
+        // Yapper already has.
+        try await AssetInventory.reserve(locale: locale)
         guard let request = try await AssetInventory.assetInstallationRequest(supporting: [makeTranscriber(locale)])
         else { return }
         let progress = request.progress
@@ -494,6 +518,30 @@ enum AppleAnalyzer {
         defer { watcher.cancel() }
         try await request.downloadAndInstall()
         onProgress(1)
+    }
+
+    /// Languages Apple's model can take as a second language: every one it
+    /// supports except this iPhone's own, by name.
+    static func secondLanguageChoices() async -> [Locale] {
+        guard #available(iOS 26.0, macOS 26.0, *), SpeechTranscriber.isAvailable else { return [] }
+        let primary = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)?.language.languageCode
+        return await SpeechTranscriber.supportedLocales
+            .filter { $0.language.languageCode != primary }
+            .sorted { name($0) < name($1) }
+    }
+
+    /// "Spanish (United States)", in this iPhone's language.
+    static func name(_ locale: Locale) -> String {
+        Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+    }
+
+    /// Gives back a language Yapper no longer dictates in, so iOS can remove
+    /// its model when no other app uses it.
+    static func release(_ language: Locale) async {
+        guard #available(iOS 26.0, macOS 26.0, *),
+              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: language)
+        else { return }
+        await AssetInventory.release(reservedLocale: locale)
     }
 
     @available(iOS 26.0, macOS 26.0, *)
@@ -586,7 +634,7 @@ enum AppleAnalyzer {
     }
 
     /// Converts a buffer to the format the analyzer wants, in one pass.
-    private static func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+    static func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
         if buffer.format == format { return buffer }
         guard let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
         let ratio = format.sampleRate / buffer.format.sampleRate
