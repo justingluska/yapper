@@ -196,18 +196,26 @@ enum Bilingual {
     // MARK: Text
 
     /// Pieces of text in order, as one string: each piece keeps the spacing
-    /// its model gave it, Latin words never run together, and runs of
-    /// spaces become one.
+    /// its model gave it, Latin words never run into each other or into the
+    /// punctuation before them, and runs of spaces become one.
     static func join(_ pieces: [String]) -> String {
         var text = ""
         for piece in pieces where !piece.isEmpty {
-            if let last = text.last, let first = piece.first,
-               !last.isWhitespace, !first.isWhitespace, isLatinLetterOrDigit(last), isLatinLetterOrDigit(first) {
+            if let last = text.last, let first = piece.first, !last.isWhitespace, isLatinLetterOrDigit(first),
+               isLatinLetterOrDigit(last) || ".,!?;:)…".contains(last) {
                 text += " "
             }
             text += piece
         }
         return text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// A stretch redone in another language, to go back inside a sentence:
+    /// without the full stop its model put at the end of the clip.
+    static func spliced(_ text: String) -> String {
+        var text = text.trimmingCharacters(in: .whitespaces)
+        while let last = text.last, ".!?。".contains(last) { text.removeLast() }
+        return " \(text) "
     }
 
     private static func hasLatinLetter(_ text: String) -> Bool {

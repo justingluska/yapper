@@ -112,5 +112,15 @@ final class BilingualTests: XCTestCase {
         XCTAssertEqual(Bilingual.join(["我", "明天", " finish the report ", "然后", "去"]), "我明天 finish the report 然后去")
         XCTAssertEqual(Bilingual.join(["I need to go", "al supermercado"]), "I need to go al supermercado")
         XCTAssertEqual(Bilingual.join([" Hola,", " ", "  amigo. "]), "Hola, amigo.")
+        // A piece that starts a new language never runs into the full stop before it.
+        XCTAssertEqual(Bilingual.join(["se llama neutral.", "Que son como los colors"]), "se llama neutral. Que son como los colors")
+        // A full-width stop carries its own space.
+        XCTAssertEqual(Bilingual.join(["回到这里。", "Then"]), "回到这里。Then")
+    }
+
+    func testSplicedStretchLosesTheClipsFullStop() {
+        XCTAssertEqual(Bilingual.join(["开始", Bilingual.spliced("talk about our research topics."), "。"]),
+                       "开始 talk about our research topics 。")
+        XCTAssertEqual(Bilingual.spliced(" Why did you come? "), " Why did you come ")
     }
 }

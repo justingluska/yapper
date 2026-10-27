@@ -105,7 +105,7 @@ enum AppleBilingual {
                 let redo = try await piece(samples, sampleRate: sampleRate, start: own[0].start, end: own[own.count - 1].end,
                                            padding: Bilingual.spanPadding, duration: duration, locales: [other],
                                            isFirst: false, isLast: false)[0]
-                pieces.append(Bilingual.shouldSplice(own: own, redo: redo) ? " \(text(redo)) " : own.map(\.text).joined())
+                pieces.append(Bilingual.shouldSplice(own: own, redo: redo) ? Bilingual.spliced(text(redo)) : own.map(\.text).joined())
                 next = span.upperBound + 1
             }
             pieces += words[next...].map(\.text)
