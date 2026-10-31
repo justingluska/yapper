@@ -11,6 +11,10 @@ struct SessionAttributes: ActivityAttributes {
         var sessionEnds: Date?
         var recordingStarted: Date?
         var lastWords: Int
+        /// The recording started hands-free (`YapIntent`) and stops by itself.
+        var handsFree: Bool? = nil
+        /// The last hands-free dictation was copied; `lastWords` is its length.
+        var copied: Bool? = nil
     }
 }
 
@@ -50,11 +54,41 @@ struct TurnOnEngineIntent: AudioRecordingIntent, LiveActivityIntent {
     }
 }
 
-/// How the intent above reaches the app's DictationController. The intent is
-/// compiled into the widget extension too (for its control), where this
-/// stays nil and is never called.
+/// "Yap with Yapper": hands-free dictation, for Siri while driving, the
+/// Action Button, Control Center and Shortcuts. Starts listening without
+/// opening Yapper (or unlocking the iPhone), stops once you stop talking, and
+/// saves the words to History and the clipboard. Run again while it's
+/// listening, it finishes early.
+struct YapIntent: AudioRecordingIntent, LiveActivityIntent {
+    static let title: LocalizedStringResource = "Yap Hands-Free"
+    static let description = IntentDescription("Starts listening without opening Yapper and stops when you stop talking. Your words are saved to History and copied.")
+    static let openAppWhenRun = false
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        guard let yap = EngineHook.yap else { throw EngineHook.Failure("Open Yapper once, then try again.") }
+        try yap()
+        return .result()
+    }
+}
+
+/// The Done button on the Live Activity while Yapper is listening.
+struct FinishDictationIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Finish Dictating"
+    static let description = IntentDescription("Stops listening and types out what you said.")
+
+    func perform() async throws -> some IntentResult {
+        Bridge.send(.stop)
+        return .result()
+    }
+}
+
+/// How the intents above reach the app's DictationController. They're
+/// compiled into the widget extension too (for its controls), where these
+/// stay nil and are never called.
 enum EngineHook {
     @MainActor static var turnOn: (() throws -> Void)?
+    @MainActor static var yap: (() throws -> Void)?
 
     struct Failure: LocalizedError {
         let message: String

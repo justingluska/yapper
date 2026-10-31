@@ -7,6 +7,7 @@ import WidgetKit
 struct YapperWidgetBundle: WidgetBundle {
     var body: some Widget {
         SessionLiveActivity()
+        YapControl()
         StartDictationControl()
         TurnOnEngineControl()
     }
@@ -35,7 +36,7 @@ struct SessionLiveActivity: Widget {
                     .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    EndButton()
+                    ActionButton(state: context.state)
                         .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -135,7 +136,7 @@ private struct Headline: View {
             case "transcribing", "preparing":
                 Text("Typing it out")
             default:
-                Text("Ready to yap")
+                Text(state.copied == true ? "Copied" : "Ready to yap")
             }
         }
         .font(.system(size: 20, weight: .semibold))
@@ -156,7 +157,7 @@ private struct LockScreenView: View {
                 StatusLine(state: state)
             }
             Spacer()
-            EndButton()
+            ActionButton(state: state)
         }
         .padding(16)
     }
@@ -169,11 +170,17 @@ private struct StatusLine: View {
         Group {
             switch state.phase {
             case "recording":
-                Text("Tap the mic on the Yapper keyboard to finish")
+                if state.handsFree == true {
+                    Text("Stops when you stop talking")
+                } else {
+                    Text("Tap the mic on the Yapper keyboard to finish")
+                }
             case "transcribing", "preparing":
                 Text("Transcribing on your iPhone")
             default:
-                if let ends = state.sessionEnds {
+                if state.copied == true {
+                    Text(state.lastWords == 1 ? "1 word, in History. Tap to open." : "\(state.lastWords) words, in History. Tap to open.")
+                } else if let ends = state.sessionEnds {
                     Text("Engine on until \(ends.formatted(date: .omitted, time: .shortened)). Tap the Yapper keyboard.")
                 } else {
                     Text("Engine on. Tap the Yapper keyboard.")
@@ -183,6 +190,32 @@ private struct StatusLine: View {
         .font(.system(size: 13))
         .foregroundStyle(.white.opacity(0.75))
         .lineLimit(1)
+    }
+}
+
+/// Done while listening (keeps what was said), otherwise Off.
+private struct ActionButton: View {
+    let state: SessionAttributes.ContentState
+
+    var body: some View {
+        if state.phase == "recording" {
+            DoneButton()
+        } else {
+            EndButton()
+        }
+    }
+}
+
+private struct DoneButton: View {
+    var body: some View {
+        Button(intent: FinishDictationIntent()) {
+            Label("Done", systemImage: "checkmark")
+                .font(.system(size: 13, weight: .semibold))
+                .labelStyle(.titleAndIcon)
+        }
+        .buttonStyle(.bordered)
+        .tint(.white)
+        .accessibilityLabel("Finish dictating")
     }
 }
 
@@ -196,6 +229,20 @@ private struct EndButton: View {
         .buttonStyle(.bordered)
         .tint(.white)
         .accessibilityLabel("Turn off the speech engine")
+    }
+}
+
+/// Hands-free: listens without opening Yapper and stops when you stop
+/// talking. The one to put on the Action Button for the car.
+struct YapControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.gluska.yapper.yap") {
+            ControlWidgetButton(action: YapIntent()) {
+                Label("Yap Hands-Free", systemImage: "mic.badge.plus")
+            }
+        }
+        .displayName("Yap Hands-Free")
+        .description("Listens without opening Yapper, stops when you stop talking, and copies your words.")
     }
 }
 
