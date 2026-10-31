@@ -133,8 +133,23 @@ struct HistoryView: View {
         .sheet(item: $exporting) { request in
             ExportView(records: request.records)
         }
-        .onAppear { reload() }
+        .onAppear {
+            reload()
+            reveal()
+        }
         .onChange(of: controller.historyVersion) { _, _ in reload() }
+        .onChange(of: controller.revealRecord) { _, _ in reveal() }
+    }
+
+    /// Opens the hands-free dictation Yapper saved in the background.
+    private func reveal() {
+        guard let id = controller.revealRecord else { return }
+        controller.revealRecord = nil
+        reload()
+        guard let record = records.first(where: { $0.id == id }) else { return }
+        selecting = false
+        selection = []
+        selected = record
     }
 
     @ToolbarContentBuilder

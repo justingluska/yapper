@@ -12,6 +12,7 @@ struct YapperApp: App {
         Transcriber.configure()
         YapperShortcuts.updateAppShortcutParameters()
         EngineHook.turnOn = { try DictationController.shared.turnOnInBackground() }
+        EngineHook.yap = { try DictationController.shared.yapHandsFree() }
         if ProcessInfo.processInfo.arguments.contains("-screenshots") { Self.seedScreenshotData() }
     }
 
@@ -126,9 +127,20 @@ struct YapperApp: App {
 
 struct YapperShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        // First, so it's the one Siri and Spotlight suggest.
+        AppShortcut(
+            intent: YapIntent(),
+            phrases: [
+                "Yap with \(.applicationName)",
+                "Take a note with \(.applicationName)",
+                "\(.applicationName) note",
+            ],
+            shortTitle: "Yap Hands-Free",
+            systemImageName: "mic.badge.plus"
+        )
         AppShortcut(
             intent: StartDictationIntent(),
-            phrases: ["Start dictating with \(.applicationName)", "Yap with \(.applicationName)"],
+            phrases: ["Start dictating with \(.applicationName)"],
             shortTitle: "Start Dictating",
             systemImageName: "mic.fill"
         )

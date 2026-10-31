@@ -1,16 +1,29 @@
 import SwiftUI
 
 struct MainView: View {
+    @EnvironmentObject private var controller: DictationController
+    @State private var tab = Tab.home
+
+    enum Tab { case home, history, dictionary, settings }
+
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             NavigationStack { HomeView() }
                 .tabItem { Label("Home", systemImage: "waveform") }
+                .tag(Tab.home)
             NavigationStack { HistoryView() }
                 .tabItem { Label("History", systemImage: "clock") }
+                .tag(Tab.history)
             NavigationStack { DictionaryView() }
                 .tabItem { Label("Dictionary", systemImage: "character.book.closed") }
+                .tag(Tab.dictionary)
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(Tab.settings)
+        }
+        // A hands-free dictation finished in the background: open on it.
+        .onChange(of: controller.revealRecord) { _, id in
+            if id != nil { tab = .history }
         }
     }
 }

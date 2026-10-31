@@ -69,10 +69,17 @@ final class DictationController: ObservableObject {
     /// listening screen (swiping back to the keyboard, or Close).
     @Published private(set) var presentingListening = false
     @Published private(set) var recordingSource: Source = .app
+    /// A hands-free dictation saved while Yapper was in the background: the
+    /// next time Yapper opens, History shows it. Cleared once shown.
+    @Published var revealRecord: UUID?
 
     private let recorder = Recorder()
     private let transcriber = Transcriber()
     private let signals = SignalObserver()
+    /// Ends hands-free dictations when the speaker goes quiet.
+    private let silence = SilenceDetector()
+    /// The last hands-free dictation was copied, for the Live Activity.
+    private var copiedHandsFree = false
     private var expiry: Timer?
     private var activity: Activity<SessionAttributes>?
     /// The load in flight, shared by everyone who needs the model, so a
@@ -90,15 +97,20 @@ final class DictationController: ObservableObject {
     /// they're done, even if the engine turned off meanwhile (a phone call).
     private var transcriptionsInFlight = 0
 
-    enum Source { case keyboard, app }
+    /// `handsFree`: Siri, the Action Button or Control Center (`YapIntent`),
+    /// which stops on its own when the speaker goes quiet.
+    enum Source { case keyboard, app, handsFree }
 
     var isSessionLive: Bool { phase != .idle }
 
     private init() {
         // Straight from the audio thread: the feed is lock-free, and a hop
         // to the main queue would bunch the levels up again.
-        recorder.onLevel = { value, time in
+        recorder.onLevel = { [silence] value, time in
             Bridge.levelFeed?.write(value, at: time)
+            if let event = silence.feed(value, at: time) {
+                Task { @MainActor [weak self] in self?.handleSilence(event) }
+            }
         }
         recorder.onInterrupted = { [weak self] in
             Task { @MainActor in self?.handleInterruption() }
@@ -589,6 +601,36 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Hands-free dictation (`YapIntent`), started from Siri, the Action
+    /// Button or Control Center, usually with Yapper in the background. Turns
+    /// the engine on if it's off and starts listening; the silence detector
+    /// ends it. Run again while it's listening, it finishes there.
+    func yapHandsFree() throws {
+        if phase == .recording {
+            finishRecording()
+            return
+        }
+        try turnOnInBackground()
+        guard phase == .ready else {
+            throw EngineHook.Failure("Yapper is still typing out your last dictation. Try again in a moment.")
+        }
+        beginRecording(source: .handsFree)
+        guard phase == .recording else {
+            throw EngineHook.Failure(errorMessage ?? "Yapper couldn't start listening.")
+        }
+    }
+
+    private func handleSilence(_ event: SilenceDetector.Event) {
+        guard phase == .recording, recordingSource == .handsFree else { return }
+        switch event {
+        case .finished:
+            finishRecording()
+        case .nothingHeard:
+            cancelRecording()
+            report("Didn't hear anything, so Yapper stopped listening.")
+        }
+    }
+
     /// With Parakeet only on, a session can't start without a downloaded
     /// model: every dictation would fail.
     private func parakeetOnlyRefusal() -> String? {
@@ -659,11 +701,15 @@ final class DictationController: ObservableObject {
         recordingSource = source
         errorMessage = nil
         Bridge.lastError = nil
+        copiedHandsFree = false
+        if source == .handsFree { silence.arm() } else { silence.disarm() }
         recorder.begin()
         let now = Date()
         recordingStarted = now
         Bridge.recordingStarted = now
-        presentingListening = true
+        // Hands-free usually starts with Yapper in the background; the
+        // listening screen is only for someone looking at Yapper.
+        presentingListening = source != .handsFree || UIApplication.shared.applicationState == .active
         setPhase(.recording)
         Haptics.start()
     }
@@ -673,6 +719,7 @@ final class DictationController: ObservableObject {
     /// the keyboard only types a result in for two minutes.
     func finishRecording(interrupted: Bool = false) {
         guard phase == .recording else { return }
+        silence.disarm()
         let samples = recorder.end()
         let rate = recorder.sampleRate
         let duration = Double(samples.count) / rate
@@ -727,6 +774,10 @@ final class DictationController: ObservableObject {
                         audioFile: RecordingStore.save(samples, sampleRate: rate, id: id),
                         languages: output.languages
                     ))
+                    if recordingSource == .handsFree {
+                        copiedHandsFree = true
+                        if UIApplication.shared.applicationState != .active { revealRecord = id }
+                    }
                     if interrupted {
                         errorMessage = "A call or Siri stopped Yapper mid-dictation. What you said before it is in History and on the clipboard."
                         Bridge.lastError = errorMessage
@@ -751,7 +802,7 @@ final class DictationController: ObservableObject {
             historyVersion += 1
             transcriptionsInFlight -= 1
             if isSessionLive { prepareApple() } else { releaseModel() }
-            if recordingSource == .keyboard, UIApplication.shared.applicationState == .background {
+            if recordingSource != .app, UIApplication.shared.applicationState == .background {
                 presentingListening = false
             }
             // The session may have ended (or been interrupted) meanwhile.
@@ -813,6 +864,7 @@ final class DictationController: ObservableObject {
 
     func cancelRecording() {
         guard phase == .recording else { return }
+        silence.disarm()
         _ = recorder.end()
         recordingStarted = nil
         Bridge.recordingStarted = nil
@@ -880,7 +932,9 @@ final class DictationController: ObservableObject {
             phase: phase.rawValue,
             sessionEnds: sessionEnds,
             recordingStarted: recordingStarted,
-            lastWords: lastText.map { $0.split(whereSeparator: \.isWhitespace).count } ?? 0
+            lastWords: lastText.map { $0.split(whereSeparator: \.isWhitespace).count } ?? 0,
+            handsFree: phase == .recording && recordingSource == .handsFree ? true : nil,
+            copied: phase == .ready && copiedHandsFree ? true : nil
         )
     }
 

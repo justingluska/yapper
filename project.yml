@@ -207,6 +207,7 @@ targets:
       - path: Yapper/Audio/AudioChunks.swift
       - path: Yapper/Audio/Bilingual.swift
       - path: Yapper/Audio/RecordingEncoder.swift
+      - path: Yapper/Audio/SilenceDetector.swift
       - path: Yapper/History/HistoryExport.swift
     settings:
       base:
@@ -292,6 +293,7 @@ targets:
       - path: Yapper/Audio/Bilingual.swift
       - path: Yapper/Audio/AudioChunks.swift
       - path: Yapper/Audio/RecordingEncoder.swift
+      - path: Yapper/Audio/SilenceDetector.swift
       - path: Yapper/Audio/RecordingStore.swift
       - path: Yapper/Licenses
         buildPhase: resources

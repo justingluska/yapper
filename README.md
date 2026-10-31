@@ -96,7 +96,11 @@ cap how much you can say before you pay. Yapper does none of that.
 **Start it your way**
 - Dynamic Island and Lock Screen Live Activity: blue when ready, red while listening, amber while it types, with a
   button to turn the mic off
-- Control Center control, Action Button, Back Tap, Siri ("Yap with Yapper") and Shortcuts ("Start Dictating")
+- Control Center control, Action Button, Back Tap, Siri and Shortcuts ("Start Dictating")
+- Hands-free, for the car: "Hey Siri, yap with Yapper" (or the Action Button, or the Yap Hands-Free control) listens
+  without opening Yapper or unlocking the iPhone, stops when you stop talking, and saves your words to History and
+  the clipboard. The Lock Screen shows how many words were copied; tap it and Yapper opens on that dictation. Say it
+  again, or tap Done, to finish early
 - Optional: copy every dictation to the clipboard (this iPhone only)
 - The screen stays on while Yapper is listening, transcribing or downloading a model, so the phone doesn't lock
   mid-dictation (while Yapper is on screen; iOS doesn't let a keyboard hold it awake in other apps)
