@@ -149,7 +149,6 @@ final class TextProcessorTests: XCTestCase {
     func testTheWordStaysWhenItMeansTheThing() {
         XCTAssertEqual(TextProcessor.clean("It took a period of time and the Oxford comma matters."),
                        "It took a period of time and the Oxford comma matters.")
-        XCTAssertEqual(TextProcessor.clean("Comma"), "Comma")
     }
 
     func testEveryWayOfSayingIt() {
@@ -169,6 +168,30 @@ final class TextProcessorTests: XCTestCase {
         XCTAssertEqual(TextProcessor.clean("I was thinking. Dot. Dot. Dot. Maybe not.", options: options), "I was thinking… Maybe not")
         XCTAssertEqual(TextProcessor.clean("I was thinking dot-dot-dot maybe not"), "I was thinking… maybe not")
         XCTAssertEqual(TextProcessor.clean("Good question, Mark."), "Good question, Mark.")
+    }
+
+    /// What Jared hit: Punctuation off, a dictation of just "dot dot dot"
+    /// came out "dot." (kept as words at the start, the last "dot" made a
+    /// full stop, and stutter removal merged the rest).
+    func testAMarkCanOpenTheDictation() {
+        for lowercase in [false, true] {
+            let options = TextProcessor.Options(punctuation: false, lowercase: lowercase)
+            XCTAssertEqual(TextProcessor.clean("dot dot dot", options: options), "…")
+            XCTAssertEqual(TextProcessor.clean("Dot dot dot.", options: options), "…")
+            XCTAssertEqual(TextProcessor.clean("Dot. Dot. Dot.", options: options), "…")
+            XCTAssertEqual(TextProcessor.clean("Dot… dot… dot…", options: options), "…")
+            XCTAssertEqual(TextProcessor.clean("Comma.", options: options), ",")
+            XCTAssertEqual(TextProcessor.clean("Period.", options: options), ".")
+            XCTAssertEqual(TextProcessor.clean("Dot.", options: options), ".")
+            XCTAssertEqual(TextProcessor.clean("Question mark?", options: options), "?")
+            XCTAssertEqual(TextProcessor.clean("Comma, and then we left.", options: options), ", and then we left")
+        }
+    }
+
+    func testAMarkOpeningTheDictationSitsAgainstTheText() {
+        XCTAssertEqual(TextProcessor.fit("…", before: "I was thinking"), "…")
+        XCTAssertEqual(TextProcessor.fit(", and then", before: "hello", autocapitalize: false), ", and then")
+        XCTAssertEqual(TextProcessor.fit(".", before: "I was thinking", after: " more"), ".")
     }
 
     func testQuotesBracketsAndDashes() {

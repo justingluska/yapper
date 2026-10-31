@@ -43,8 +43,12 @@ enum TextProcessor {
         // Dictionary before stutters, so a phrase like "c plus plus" survives.
         text = applyReplacements(text, options.replacements)
         if options.removeRepeats { text = removeRepeats(text) }
-        if options.spokenPunctuation { text = resolveSpokenPunctuation(text, capitalize: !options.lowercase) }
         text = tidySpacing(text)
+        // After tidying, which drops a stray mark at the very start: a said
+        // one there is wanted (the dictation continues the field's text).
+        if options.spokenPunctuation {
+            text = resolveSpokenPunctuation(text, capitalize: !options.lowercase).trimmingCharacters(in: .whitespaces)
+        }
         return text
     }
 
@@ -126,19 +130,18 @@ enum TextProcessor {
             // Models often punctuate a repeated word: "Dot. Dot. Dot.",
             // "dot, dot, dot". Only there: in "good question, Mark" the
             // comma is real.
-            let between = item.phrase == "dot dot dot" ? "[\\s,.;:!?-]*" : "[\\s-]*"
+            let between = item.phrase == "dot dot dot" ? "[\\s,.;:!?…-]*" : "[\\s-]*"
             let words = item.phrase.split(separator: " ").map(String.init).joined(separator: between)
-            let guess = item.spacing == .after || item.spacing == .line ? "[,.;:!?]*" : ""
+            let guess = item.spacing == .after || item.spacing == .line ? "[,.;:!?…]*" : ""
             guard let regex = try? NSRegularExpression(pattern: "(?i)\(guess)\\s*\\b\(words)\\b\(guess)") else { continue }
             let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
             for match in matches.reversed() {
                 guard let range = Range(match.range, in: result) else { continue }
                 let previous = result[..<range.lowerBound]
                     .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" && $0 != "’" }).last
+                // A said mark can open a dictation too: it continues
+                // whatever is already in the field.
                 if let previous, keepsTheWord.contains(previous.lowercased()) { continue }
-                // A lone "comma" opening the dictation is just the word; an
-                // opening quote or bracket can start it.
-                if previous == nil, item.spacing != .before { continue }
                 result.replaceSubrange(range, with: String(placeholder(item.index)))
             }
         }
@@ -148,7 +151,7 @@ enum TextProcessor {
             of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot\\s+(?=(?:\(domainEndings))\\b)", with: String(domainDot),
             options: .regularExpression)
         result = result.replacingOccurrences(
-            of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot[.!?,]*\\s*$", with: String(fullStop), options: .regularExpression)
+            of: "(?i)(?:^|(?<=\\p{L}|\\p{N})\\s+)dot[.!?,]*\\s*$", with: String(fullStop), options: .regularExpression)
         return result
     }
 
@@ -329,12 +332,15 @@ enum TextProcessor {
 
         // Mid-sentence insert: drop a trailing period the model added, since
         // the user is continuing their own sentence.
+        // A dictation that's only marks was said on purpose: keep it.
         if !atFieldStart && !afterSentenceEnd, let after, !after.trimmingCharacters(in: .whitespaces).isEmpty,
-           result.hasSuffix(".") {
+           result.hasSuffix("."), result.contains(where: { $0.isLetter || $0.isNumber }) {
             result.removeLast()
         }
 
-        if let last = before.last, !last.isWhitespace, !"([{\"'“‘/@#".contains(last) {
+        // No space before a dictation that opens with a mark ("…", ", and").
+        if let last = before.last, !last.isWhitespace, !"([{\"'“‘/@#".contains(last),
+           let first = result.first, !TextProcessor.closingMarks.contains(first) {
             result = " " + result
         }
         if let first = after?.first, !first.isWhitespace, !".,!?;:)]}\"'”’".contains(first) {
@@ -344,6 +350,9 @@ enum TextProcessor {
     }
 
     // MARK: Helpers
+
+    /// Marks that sit against the word before them, never after a space.
+    static let closingMarks = ",.;:!?…)]}”’"
 
     private static func isSentenceStart(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespaces)

@@ -232,7 +232,8 @@ final class MacDictation: ObservableObject {
                     saveFailure(id: id, message: message, samples: samples, rate: rate, duration: duration, output: output)
                     hud.showMessage(message, isError: true)
                 } else {
-                    let typed = TextInserter.needsLeadingSpace() ? " " + text : text
+                    let opensWithMark = text.first.map { TextProcessor.closingMarks.contains($0) } ?? false
+                    let typed = TextInserter.needsLeadingSpace() && !opensWithMark ? " " + text : text
                     if TextInserter.insert(typed, keepOnClipboard: MacSettings.keepOnClipboard) {
                         hud.hide()
                     } else {
