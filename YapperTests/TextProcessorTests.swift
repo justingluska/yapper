@@ -122,6 +122,41 @@ final class TextProcessorTests: XCTestCase {
         XCTAssertEqual(TextProcessor.fit("then we left", before: "it rained ", autocapitalize: false), "then we left")
     }
 
+    // MARK: Spoken punctuation
+
+    func testSaidMarksAreTyped() {
+        XCTAssertEqual(TextProcessor.clean("Hello comma how are you question mark"), "Hello, how are you?")
+        XCTAssertEqual(TextProcessor.clean("wow exclamation point"), "wow!")
+        XCTAssertEqual(TextProcessor.clean("I'm home period see you soon"), "I'm home. See you soon")
+    }
+
+    func testSaidMarksSurvivePunctuationOff() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("Hello, comma, how are you? Question mark. I'm fine period", options: options),
+                       "Hello, how are you? I'm fine.")
+        XCTAssertEqual(TextProcessor.clean("Check gold dot com dot", options: options), "Check gold.com.")
+    }
+
+    func testSaidMarksInLowercaseDontCapitalize() {
+        let options = TextProcessor.Options(punctuation: false, lowercase: true)
+        XCTAssertEqual(TextProcessor.clean("Okay period see you then", options: options), "okay. see you then")
+    }
+
+    func testSaidNewLine() {
+        XCTAssertEqual(TextProcessor.clean("Dear Sam comma new line thanks for coming"), "Dear Sam,\nThanks for coming")
+    }
+
+    func testTheWordStaysWhenItMeansTheThing() {
+        XCTAssertEqual(TextProcessor.clean("It took a period of time and the Oxford comma matters."),
+                       "It took a period of time and the Oxford comma matters.")
+        XCTAssertEqual(TextProcessor.clean("Comma"), "Comma")
+    }
+
+    func testSpokenPunctuationOff() {
+        let options = TextProcessor.Options(spokenPunctuation: false)
+        XCTAssertEqual(TextProcessor.clean("Hello comma world", options: options), "Hello comma world")
+    }
+
     // MARK: Fitting into the text field
 
     func testFitAtStartOfFieldCapitalizes() {

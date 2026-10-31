@@ -19,6 +19,9 @@ enum TextProcessor {
         /// On: every letter the model wrote is lowercase (dictionary words
         /// keep the spelling you gave them).
         var lowercase = false
+        /// "comma", "period", "question mark", "new line"… said out loud
+        /// become the mark, even with punctuation off.
+        var spokenPunctuation = true
         var replacements: [Replacement] = []
     }
 
@@ -30,6 +33,9 @@ enum TextProcessor {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return "" }
         if options.removeFillers { text = removeFillers(text) }
+        // Said marks become placeholders the punctuation pass can't see, so
+        // they survive it; they turn into real marks at the end.
+        if options.spokenPunctuation { text = markSpokenPunctuation(text) }
         // After fillers (they lean on the commas) and before the dictionary,
         // so a written "Dr." or "C++" keeps its marks.
         if !options.punctuation { text = removePunctuation(text) }
@@ -37,8 +43,114 @@ enum TextProcessor {
         // Dictionary before stutters, so a phrase like "c plus plus" survives.
         text = applyReplacements(text, options.replacements)
         if options.removeRepeats { text = removeRepeats(text) }
+        if options.spokenPunctuation { text = resolveSpokenPunctuation(text, capitalize: !options.lowercase) }
         text = tidySpacing(text)
         return text
+    }
+
+    // MARK: Spoken punctuation
+
+    /// What can be said, longest first so "semicolon" wins over "colon".
+    /// Placeholders are private-use characters no model writes.
+    static let spokenMarks: [(words: String, placeholder: Character, mark: String)] = [
+        ("new paragraph", "\u{E001}", "\n\n"),
+        ("new line", "\u{E002}", "\n"),
+        ("exclamation point", "\u{E003}", "!"),
+        ("exclamation mark", "\u{E003}", "!"),
+        ("question mark", "\u{E004}", "?"),
+        ("semi colon", "\u{E005}", ";"),
+        ("semicolon", "\u{E005}", ";"),
+        ("full stop", "\u{E006}", "."),
+        ("period", "\u{E006}", "."),
+        ("comma", "\u{E007}", ","),
+        ("colon", "\u{E008}", ":"),
+    ]
+
+    /// After one of these, the word is the thing, not the mark: "a period of
+    /// time", "the Oxford comma", "my colon".
+    private static let keepsTheWord: Set<String> = [
+        "a", "an", "the", "this", "that", "each", "every", "any", "one", "my", "your", "his", "her", "their",
+        "our", "its", "trial", "grace", "waiting", "time", "oxford", "serial", "same", "first", "last", "next",
+    ]
+
+    /// Domain endings that make "dot" a dot: "gold dot com" → "gold.com".
+    private static let domainEndings = "com|org|net|io|co|ai|app|dev|edu|gov|me|us|uk|ca|tv|xyz"
+    private static let dotPlaceholder: Character = "\u{E009}"
+
+    /// Swaps each said mark for its placeholder, along with any punctuation
+    /// the model put around the word ("Hello, comma, how" → "Hello⟨,⟩ how").
+    static func markSpokenPunctuation(_ text: String) -> String {
+        var result = text
+        // "gold dot com", and a "dot" that ends the dictation.
+        result = result.replacingOccurrences(
+            of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot\\s+(?=(?:\(domainEndings))\\b)", with: String(dotPlaceholder),
+            options: .regularExpression)
+        result = result.replacingOccurrences(
+            of: "(?i)\\s+dot[.!?,]*\\s*$", with: String(spokenMarks.first { $0.mark == "." }!.placeholder),
+            options: .regularExpression)
+
+        for entry in spokenMarks {
+            let words = entry.words.replacingOccurrences(of: " ", with: "\\s+")
+            guard let regex = try? NSRegularExpression(pattern: "(?i)[,.;:!?]*\\s*\\b\(words)\\b[,.;:!?]*") else { continue }
+            let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+            for match in matches.reversed() {
+                guard let range = Range(match.range, in: result) else { continue }
+                let previous = result[..<range.lowerBound].split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).last
+                if let previous, keepsTheWord.contains(previous.lowercased()) { continue }
+                // Nothing said before it: a lone "comma" is just the word.
+                if previous == nil { continue }
+                result.replaceSubrange(range, with: String(entry.placeholder))
+            }
+        }
+        return result
+    }
+
+    /// Turns placeholders into marks: tight to the word before, one space
+    /// after, and a capital after a said full stop, question or exclamation.
+    static func resolveSpokenPunctuation(_ text: String, capitalize: Bool) -> String {
+        var marks: [Character: String] = [dotPlaceholder: "."]
+        for entry in spokenMarks { marks[entry.placeholder] = entry.mark }
+        guard text.contains(where: { marks[$0] != nil }) else { return text }
+
+        var output = ""
+        var capitalizeNext = false
+        var pendingSpace = false
+        for char in text {
+            if char == dotPlaceholder {
+                while output.last == " " { output.removeLast() }
+                output += "."
+                pendingSpace = false
+                continue
+            }
+            if let mark = marks[char] {
+                while output.last == " " { output.removeLast() }
+                output += mark
+                if mark.hasSuffix("\n") {
+                    pendingSpace = false
+                    capitalizeNext = capitalize
+                } else {
+                    pendingSpace = true
+                    capitalizeNext = capitalize && ".!?".contains(mark)
+                }
+                continue
+            }
+            if char == " " {
+                if output.last?.isNewline == true { continue }
+                if pendingSpace { continue }
+            }
+            if pendingSpace, !",.;:!?".contains(char) {
+                output += " "
+            }
+            pendingSpace = false
+            if capitalizeNext, char.isLetter {
+                output += char.uppercased()
+                capitalizeNext = false
+            } else {
+                if !char.isWhitespace { capitalizeNext = false }
+                output.append(char)
+            }
+        }
+        return output
     }
 
     /// Removes standalone fillers along with the comma that usually follows

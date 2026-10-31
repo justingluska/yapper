@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var removeRepeats = Settings.removeRepeats
     @State private var punctuation = Settings.punctuation
     @State private var lowercase = Settings.lowercase
+    @State private var spokenPunctuation = Settings.spokenPunctuation
     @State private var haptics = Settings.haptics
     @State private var returnToApp = Settings.returnToApp
     @State private var historyDays = Settings.historyDays
@@ -77,11 +78,18 @@ struct SettingsView: View {
                     .onChange(of: punctuation) { _, value in Settings.punctuation = value }
                 Toggle("All lowercase", isOn: $lowercase)
                     .onChange(of: lowercase) { _, value in Settings.lowercase = value }
+                Toggle("Type punctuation you say", isOn: $spokenPunctuation)
+                    .onChange(of: spokenPunctuation) { _, value in Settings.spokenPunctuation = value }
             } header: {
                 SectionLabel(text: "Cleanup")
             } footer: {
-                Text("Your words come out like this: \u{201C}\(TextProcessor.styleSample(punctuation: punctuation, lowercase: lowercase))\u{201D}")
-                    .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Your words come out like this: \u{201C}\(TextProcessor.styleSample(punctuation: punctuation, lowercase: lowercase))\u{201D}")
+                    if spokenPunctuation {
+                        Text("Say \u{201C}comma\u{201D}, \u{201C}period\u{201D}, \u{201C}question mark\u{201D}, \u{201C}exclamation point\u{201D}, \u{201C}colon\u{201D}, \u{201C}new line\u{201D} or \u{201C}new paragraph\u{201D} and Yapper types it, even with Punctuation off. \u{201C}Gold dot com\u{201D} becomes gold.com.")
+                    }
+                }
+                .padding(.top, 4)
             }
 
             Section {

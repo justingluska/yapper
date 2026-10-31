@@ -10,6 +10,7 @@ struct SettingsPane: View {
     @AppStorage(Settings.Key.removeRepeats) private var removeRepeats = true
     @AppStorage(Settings.Key.punctuation) private var punctuation = true
     @AppStorage(Settings.Key.lowercase) private var lowercase = false
+    @AppStorage(Settings.Key.spokenPunctuation) private var spokenPunctuation = true
     @AppStorage(Settings.Key.historyDays) private var historyDays = -1
     @State private var recordingHours = Settings.recordingHours
     @State private var launchAtLogin = MacSettings.launchAtLogin
@@ -74,6 +75,10 @@ struct SettingsPane: View {
                 Hairline()
                 SettingRow(title: "All lowercase", detail: "Every letter, even at the start of a sentence.") {
                     Toggle("", isOn: $lowercase).labelsHidden().toggleStyle(.switch)
+                }
+                Hairline()
+                SettingRow(title: "Type punctuation you say", detail: "“comma”, “period”, “question mark”, “new line”… even with punctuation off.") {
+                    Toggle("", isOn: $spokenPunctuation).labelsHidden().toggleStyle(.switch)
                 }
             }
 

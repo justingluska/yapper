@@ -66,6 +66,7 @@ cap how much you can say before you pay. Yapper does none of that.
 **Clean text**
 - Removes "um", "uh", "er" and stutters ("I I think"), each switchable
 - Punctuation off for just the words, and an all-lowercase option ("hey are you free friday")
+- Say "comma", "period", "question mark", "new line"… and Yapper types the mark, whatever the punctuation setting
 - Personal dictionary: "when I say X, write Y" for names, brands and jargon
 
 **Speech engines, all on the device**

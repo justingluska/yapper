@@ -8,6 +8,7 @@ enum Settings {
         static let removeRepeats = "settings.removeRepeats"
         static let punctuation = "settings.punctuation"
         static let lowercase = "settings.lowercase"
+        static let spokenPunctuation = "settings.spokenPunctuation"
         static let replacements = "settings.replacements"
         static let historyDays = "settings.historyDays"
         static let haptics = "settings.haptics"
@@ -68,6 +69,13 @@ enum Settings {
     static var lowercase: Bool {
         get { defaults.object(forKey: Key.lowercase) as? Bool ?? false }
         set { defaults.set(newValue, forKey: Key.lowercase) }
+    }
+
+    /// Saying "comma", "period", "new line"… types the mark, even with
+    /// punctuation off.
+    static var spokenPunctuation: Bool {
+        get { defaults.object(forKey: Key.spokenPunctuation) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.spokenPunctuation) }
     }
 
     /// After the keyboard opens Yapper to start listening, go straight back
@@ -178,7 +186,8 @@ enum Settings {
     static var processorOptions: TextProcessor.Options {
         TextProcessor.Options(
             removeFillers: removeFillers, removeRepeats: removeRepeats,
-            punctuation: punctuation, lowercase: lowercase, replacements: replacements
+            punctuation: punctuation, lowercase: lowercase,
+            spokenPunctuation: spokenPunctuation, replacements: replacements
         )
     }
 }
