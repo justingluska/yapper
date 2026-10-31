@@ -163,6 +163,14 @@ final class TextProcessorTests: XCTestCase {
         XCTAssertEqual(TextProcessor.clean("so dot dot dot anyway"), "so… anyway")
     }
 
+    func testDotDotDotTheWayModelsWriteIt() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("I was thinking dot, dot, dot maybe not", options: options), "I was thinking… maybe not")
+        XCTAssertEqual(TextProcessor.clean("I was thinking. Dot. Dot. Dot. Maybe not.", options: options), "I was thinking… Maybe not")
+        XCTAssertEqual(TextProcessor.clean("I was thinking dot-dot-dot maybe not"), "I was thinking… maybe not")
+        XCTAssertEqual(TextProcessor.clean("Good question, Mark."), "Good question, Mark.")
+    }
+
     func testQuotesBracketsAndDashes() {
         XCTAssertEqual(TextProcessor.clean("He said open quote hi there close quote and left"), "He said “hi there” and left")
         XCTAssertEqual(TextProcessor.clean("call me open paren maybe close paren today"), "call me (maybe) today")

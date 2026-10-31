@@ -123,7 +123,11 @@ enum TextProcessor {
             .sorted { $0.phrase.count > $1.phrase.count }
 
         for item in phrases {
-            let words = item.phrase.split(separator: " ").map(String.init).joined(separator: "[\\s-]*")
+            // Models often punctuate a repeated word: "Dot. Dot. Dot.",
+            // "dot, dot, dot". Only there: in "good question, Mark" the
+            // comma is real.
+            let between = item.phrase == "dot dot dot" ? "[\\s,.;:!?-]*" : "[\\s-]*"
+            let words = item.phrase.split(separator: " ").map(String.init).joined(separator: between)
             let guess = item.spacing == .after || item.spacing == .line ? "[,.;:!?]*" : ""
             guard let regex = try? NSRegularExpression(pattern: "(?i)\(guess)\\s*\\b\(words)\\b\(guess)") else { continue }
             let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
