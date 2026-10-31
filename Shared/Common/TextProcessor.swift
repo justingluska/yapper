@@ -50,103 +50,158 @@ enum TextProcessor {
 
     // MARK: Spoken punctuation
 
-    /// What can be said, longest first so "semicolon" wins over "colon".
-    /// Placeholders are private-use characters no model writes.
-    static let spokenMarks: [(words: String, placeholder: Character, mark: String)] = [
-        ("new paragraph", "\u{E001}", "\n\n"),
-        ("new line", "\u{E002}", "\n"),
-        ("exclamation point", "\u{E003}", "!"),
-        ("exclamation mark", "\u{E003}", "!"),
-        ("question mark", "\u{E004}", "?"),
-        ("semi colon", "\u{E005}", ";"),
-        ("semicolon", "\u{E005}", ";"),
-        ("full stop", "\u{E006}", "."),
-        ("period", "\u{E006}", "."),
-        ("comma", "\u{E007}", ","),
-        ("colon", "\u{E008}", ":"),
+    /// How a said mark sits between words.
+    enum MarkSpacing {
+        /// Against the word before, a space after: , . ? ! : ; … ” )
+        case after
+        /// A space before, against the word after: “ (
+        case before
+        /// Against both words: well-known, gold.com
+        case tight
+        /// A space on both sides: then — later
+        case both
+        /// Starts a new line; nothing hangs on either side.
+        case line
+    }
+
+    struct SpokenMark {
+        var phrases: [String]
+        var mark: String
+        var spacing: MarkSpacing
+        var endsSentence = false
+    }
+
+    /// Everything that can be said, in the spellings models write it: a
+    /// space in a phrase also matches a hyphen or nothing, so "question
+    /// mark", "question-mark" and "questionmark" all count.
+    static let spokenMarks: [SpokenMark] = [
+        SpokenMark(phrases: ["new paragraph", "next paragraph"], mark: "\n\n", spacing: .line, endsSentence: true),
+        SpokenMark(phrases: ["new line", "next line"], mark: "\n", spacing: .line, endsSentence: true),
+        SpokenMark(phrases: ["question mark"], mark: "?", spacing: .after, endsSentence: true),
+        SpokenMark(phrases: ["exclamation point", "exclamation mark", "exclamation"], mark: "!", spacing: .after, endsSentence: true),
+        SpokenMark(phrases: ["full stop", "period"], mark: ".", spacing: .after, endsSentence: true),
+        SpokenMark(phrases: ["ellipsis", "dot dot dot"], mark: "…", spacing: .after),
+        SpokenMark(phrases: ["comma"], mark: ",", spacing: .after),
+        SpokenMark(phrases: ["semi colon"], mark: ";", spacing: .after),
+        SpokenMark(phrases: ["colon"], mark: ":", spacing: .after),
+        SpokenMark(phrases: ["open quote", "begin quote", "start quote", "open quotes"], mark: "“", spacing: .before),
+        SpokenMark(phrases: ["close quote", "end quote", "close quotes", "end quotes", "unquote"], mark: "”", spacing: .after),
+        SpokenMark(phrases: ["open parenthesis", "open paren", "open bracket", "left paren"], mark: "(", spacing: .before),
+        SpokenMark(phrases: ["close parenthesis", "close paren", "close bracket", "right paren"], mark: ")", spacing: .after),
+        SpokenMark(phrases: ["em dash", "dash"], mark: "—", spacing: .both),
+        SpokenMark(phrases: ["hyphen"], mark: "-", spacing: .tight),
+        // "gold dot com": matched by its own rule below, not by phrase.
+        SpokenMark(phrases: [], mark: ".", spacing: .tight),
     ]
 
+    /// Each mark's placeholder: a private-use character no model writes,
+    /// invisible to the punctuation pass and the dictionary.
+    private static func placeholder(_ index: Int) -> Character {
+        Character(UnicodeScalar(0xE100 + index)!)
+    }
+
+    private static var domainDot: Character { placeholder(spokenMarks.count - 1) }
+    private static var fullStop: Character { placeholder(spokenMarks.firstIndex { $0.phrases.contains("period") }!) }
+
     /// After one of these, the word is the thing, not the mark: "a period of
-    /// time", "the Oxford comma", "my colon".
+    /// time", "the Oxford comma", "my colon", "the next line", "quote unquote".
     private static let keepsTheWord: Set<String> = [
         "a", "an", "the", "this", "that", "each", "every", "any", "one", "my", "your", "his", "her", "their",
-        "our", "its", "trial", "grace", "waiting", "time", "oxford", "serial", "same", "first", "last", "next",
+        "our", "its", "trial", "grace", "waiting", "time", "oxford", "serial", "same", "first", "last", "quote",
     ]
 
     /// Domain endings that make "dot" a dot: "gold dot com" → "gold.com".
     private static let domainEndings = "com|org|net|io|co|ai|app|dev|edu|gov|me|us|uk|ca|tv|xyz"
-    private static let dotPlaceholder: Character = "\u{E009}"
 
-    /// Swaps each said mark for its placeholder, along with any punctuation
-    /// the model put around the word ("Hello, comma, how" → "Hello⟨,⟩ how").
+    /// Swaps each said mark for its placeholder. Around a comma, full stop
+    /// and the like, punctuation the model put there goes too: it was the
+    /// model's guess at the same mark ("Hello, comma, how" → "Hello⟨,⟩ how").
     static func markSpokenPunctuation(_ text: String) -> String {
         var result = text
-        // "gold dot com", and a "dot" that ends the dictation.
-        result = result.replacingOccurrences(
-            of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot\\s+(?=(?:\(domainEndings))\\b)", with: String(dotPlaceholder),
-            options: .regularExpression)
-        result = result.replacingOccurrences(
-            of: "(?i)\\s+dot[.!?,]*\\s*$", with: String(spokenMarks.first { $0.mark == "." }!.placeholder),
-            options: .regularExpression)
+        let phrases = spokenMarks.enumerated()
+            .flatMap { index, entry in entry.phrases.map { (phrase: $0, index: index, spacing: entry.spacing) } }
+            .sorted { $0.phrase.count > $1.phrase.count }
 
-        for entry in spokenMarks {
-            let words = entry.words.replacingOccurrences(of: " ", with: "\\s+")
-            guard let regex = try? NSRegularExpression(pattern: "(?i)[,.;:!?]*\\s*\\b\(words)\\b[,.;:!?]*") else { continue }
+        for item in phrases {
+            let words = item.phrase.split(separator: " ").map(String.init).joined(separator: "[\\s-]*")
+            let guess = item.spacing == .after || item.spacing == .line ? "[,.;:!?]*" : ""
+            guard let regex = try? NSRegularExpression(pattern: "(?i)\(guess)\\s*\\b\(words)\\b\(guess)") else { continue }
             let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
             for match in matches.reversed() {
                 guard let range = Range(match.range, in: result) else { continue }
-                let previous = result[..<range.lowerBound].split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).last
+                let previous = result[..<range.lowerBound]
+                    .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" && $0 != "’" }).last
                 if let previous, keepsTheWord.contains(previous.lowercased()) { continue }
-                // Nothing said before it: a lone "comma" is just the word.
-                if previous == nil { continue }
-                result.replaceSubrange(range, with: String(entry.placeholder))
+                // A lone "comma" opening the dictation is just the word; an
+                // opening quote or bracket can start it.
+                if previous == nil, item.spacing != .before { continue }
+                result.replaceSubrange(range, with: String(placeholder(item.index)))
             }
         }
+
+        // "gold dot com", and a "dot" that ends the dictation.
+        result = result.replacingOccurrences(
+            of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot\\s+(?=(?:\(domainEndings))\\b)", with: String(domainDot),
+            options: .regularExpression)
+        result = result.replacingOccurrences(
+            of: "(?i)(?<=\\p{L}|\\p{N})\\s+dot[.!?,]*\\s*$", with: String(fullStop), options: .regularExpression)
         return result
     }
 
-    /// Turns placeholders into marks: tight to the word before, one space
-    /// after, and a capital after a said full stop, question or exclamation.
+    /// Turns placeholders into marks with the right spaces around them, and
+    /// a capital after a said full stop, question, exclamation or new line.
     static func resolveSpokenPunctuation(_ text: String, capitalize: Bool) -> String {
-        var marks: [Character: String] = [dotPlaceholder: "."]
-        for entry in spokenMarks { marks[entry.placeholder] = entry.mark }
+        var marks: [Character: SpokenMark] = [:]
+        for (index, entry) in spokenMarks.enumerated() { marks[placeholder(index)] = entry }
         guard text.contains(where: { marks[$0] != nil }) else { return text }
 
         var output = ""
         var capitalizeNext = false
+        /// A space is owed before the next word (after , . ? and the like).
         var pendingSpace = false
+        /// Spaces are swallowed until the next word (after “ ( - and lines).
+        var skipSpace = false
+        func trimSpaces() { while output.last == " " || output.last == "\t" { output.removeLast() } }
+
         for char in text {
-            if char == dotPlaceholder {
-                while output.last == " " { output.removeLast() }
-                output += "."
+            if let entry = marks[char] {
                 pendingSpace = false
-                continue
-            }
-            if let mark = marks[char] {
-                while output.last == " " { output.removeLast() }
-                output += mark
-                if mark.hasSuffix("\n") {
-                    pendingSpace = false
-                    capitalizeNext = capitalize
-                } else {
+                skipSpace = false
+                trimSpaces()
+                switch entry.spacing {
+                case .after:
+                    output += entry.mark
                     pendingSpace = true
-                    capitalizeNext = capitalize && ".!?".contains(mark)
+                case .before:
+                    if let last = output.last, !last.isNewline, !"(“\"‘".contains(last) { output += " " }
+                    output += entry.mark
+                    skipSpace = true
+                case .tight:
+                    output += entry.mark
+                    skipSpace = true
+                case .both:
+                    output += output.isEmpty || output.last!.isNewline ? entry.mark + " " : " " + entry.mark + " "
+                    skipSpace = true
+                case .line:
+                    output += entry.mark
+                    skipSpace = true
                 }
+                if entry.endsSentence { capitalizeNext = capitalize }
                 continue
             }
-            if char == " " {
-                if output.last?.isNewline == true { continue }
-                if pendingSpace { continue }
+            if char == " " || char == "\t" {
+                if pendingSpace || skipSpace || output.last?.isNewline == true { continue }
+                output.append(char)
+                continue
             }
-            if pendingSpace, !",.;:!?".contains(char) {
-                output += " "
-            }
+            if pendingSpace, !",.;:!?)]}”’\"'…".contains(char), !char.isNewline { output += " " }
             pendingSpace = false
+            skipSpace = false
             if capitalizeNext, char.isLetter {
                 output += char.uppercased()
                 capitalizeNext = false
             } else {
-                if !char.isWhitespace { capitalizeNext = false }
+                if char.isLetter || char.isNumber { capitalizeNext = false }
                 output.append(char)
             }
         }

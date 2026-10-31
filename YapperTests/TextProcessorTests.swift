@@ -152,6 +152,32 @@ final class TextProcessorTests: XCTestCase {
         XCTAssertEqual(TextProcessor.clean("Comma"), "Comma")
     }
 
+    func testEveryWayOfSayingIt() {
+        XCTAssertEqual(TextProcessor.clean("Is it done questionmark"), "Is it done?")
+        XCTAssertEqual(TextProcessor.clean("Is it done question-mark"), "Is it done?")
+        XCTAssertEqual(TextProcessor.clean("first part semi-colon second part"), "first part; second part")
+        XCTAssertEqual(TextProcessor.clean("hi newline bye"), "hi\nBye")
+        XCTAssertEqual(TextProcessor.clean("hi next paragraph bye"), "hi\n\nBye")
+        XCTAssertEqual(TextProcessor.clean("no way exclamation mark"), "no way!")
+        XCTAssertEqual(TextProcessor.clean("done fullstop"), "done.")
+        XCTAssertEqual(TextProcessor.clean("so dot dot dot anyway"), "so… anyway")
+    }
+
+    func testQuotesBracketsAndDashes() {
+        XCTAssertEqual(TextProcessor.clean("He said open quote hi there close quote and left"), "He said “hi there” and left")
+        XCTAssertEqual(TextProcessor.clean("call me open paren maybe close paren today"), "call me (maybe) today")
+        XCTAssertEqual(TextProcessor.clean("I was there dash barely"), "I was there — barely")
+        XCTAssertEqual(TextProcessor.clean("a well hyphen known name"), "a well-known name")
+        XCTAssertEqual(TextProcessor.clean("It was quote unquote fine"), "It was quote unquote fine")
+    }
+
+    func testOrdinaryWordsStayWords() {
+        let sentence = "Hey dude, I have a question for you. There's a question mark over it, add a dash of salt, read the next line."
+        XCTAssertEqual(TextProcessor.clean(sentence), sentence)
+        XCTAssertEqual(TextProcessor.clean("Hey dude I have a question for you", options: TextProcessor.Options(punctuation: false)),
+                       "Hey dude I have a question for you")
+    }
+
     func testSpokenPunctuationOff() {
         let options = TextProcessor.Options(spokenPunctuation: false)
         XCTAssertEqual(TextProcessor.clean("Hello comma world", options: options), "Hello comma world")

@@ -86,7 +86,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Your words come out like this: \u{201C}\(TextProcessor.styleSample(punctuation: punctuation, lowercase: lowercase))\u{201D}")
                     if spokenPunctuation {
-                        Text("Say \u{201C}comma\u{201D}, \u{201C}period\u{201D}, \u{201C}question mark\u{201D}, \u{201C}exclamation point\u{201D}, \u{201C}colon\u{201D}, \u{201C}new line\u{201D} or \u{201C}new paragraph\u{201D} and Yapper types it, even with Punctuation off. \u{201C}Gold dot com\u{201D} becomes gold.com.")
+                        Text("Say \u{201C}comma\u{201D}, \u{201C}period\u{201D}, \u{201C}question mark\u{201D}, \u{201C}exclamation point\u{201D}, \u{201C}colon\u{201D}, \u{201C}dash\u{201D}, \u{201C}open quote\u{201D}, \u{201C}new line\u{201D}, \u{201C}new paragraph\u{201D} and the like, and Yapper types the mark, even with Punctuation off. \u{201C}Gold dot com\u{201D} becomes gold.com. Just \u{201C}question\u{201D} stays a word.")
                     }
                 }
                 .padding(.top, 4)
