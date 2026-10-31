@@ -137,7 +137,7 @@ struct SettingsView: View {
             Section {
                 NavigationLink("Try the keyboard") { TryKeyboardView() }
                 Button("Keyboard settings") { KeyboardStatus.openSettings() }
-                Button("Action Button and Control Center") { showActionButtonHelp = true }
+                NavigationLink("Siri, Action Button and Control Center") { ShortcutsHelpView() }
                 NavigationLink("Privacy") { PrivacyView() }
                 Link("Privacy policy", destination: URL(string: "https://digitalmundo.org/yapper/privacy/")!)
                 Link("Terms of service", destination: URL(string: "https://digitalmundo.org/yapper/terms/")!)
@@ -217,14 +217,7 @@ struct SettingsView: View {
         } message: { cut in
             Text(cut.message)
         }
-        .alert("Action Button, Control Center and Back Tap", isPresented: $showActionButtonHelp) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Action Button: Settings › Action Button › Shortcut › Yapper › Start Dictating.\n\nControl Center: edit Control Center › Add a Control › Yapper.\n\nBack Tap: Settings › Accessibility › Touch › Back Tap › Start Dictating.\n\nYapper opens, listens, and copies your words when you tap Done.")
-        }
     }
-
-    @State private var showActionButtonHelp = false
 
     private static let historyChoices = [0, 1, 7, 30, -1]
 
