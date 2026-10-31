@@ -69,6 +69,59 @@ final class TextProcessorTests: XCTestCase {
         XCTAssertEqual(TextProcessor.clean("   "), "")
     }
 
+    // MARK: Punctuation and lowercase
+
+    func testPunctuationOffKeepsJustTheWords() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("Hey, are you free? I'm out... Back at 5!", options: options),
+                       "Hey are you free I'm out Back at 5")
+    }
+
+    func testPunctuationOffKeepsMarksInsideNumbersAndAddresses() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("It's 3.5 miles, $1,000, at 10:30 on gold.com.", options: options),
+                       "It's 3.5 miles $1,000 at 10:30 on gold.com")
+    }
+
+    func testPunctuationOffStillRemovesFillers() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("I was, um, thinking. Uh, yes.", options: options), "I was thinking Yes")
+    }
+
+    func testPunctuationOffKeepsDictionaryMarks() {
+        let options = TextProcessor.Options(punctuation: false, replacements: [Replacement(spoken: "c plus plus", written: "C++.")])
+        XCTAssertEqual(TextProcessor.clean("I write c plus plus.", options: options), "I write C++.")
+    }
+
+    func testPunctuationOffDropsFullWidthMarks() {
+        let options = TextProcessor.Options(punctuation: false)
+        XCTAssertEqual(TextProcessor.clean("¿Qué tal? Bien.", options: options), "Qué tal Bien")
+        XCTAssertEqual(TextProcessor.clean("你好。今天好吗？", options: options), "你好 今天好吗")
+    }
+
+    func testLowercaseKeepsPunctuation() {
+        let options = TextProcessor.Options(lowercase: true)
+        XCTAssertEqual(TextProcessor.clean("I think NASA called. Then Justin left.", options: options),
+                       "i think nasa called. then justin left.")
+    }
+
+    func testRawLowercase() {
+        let options = TextProcessor.Options(punctuation: false, lowercase: true,
+                                            replacements: [Replacement(spoken: "gold penguin", written: "Gold Penguin")])
+        XCTAssertEqual(TextProcessor.clean("Hey, I saw Gold Penguin today. It's great!", options: options),
+                       "hey i saw Gold Penguin today it's great")
+    }
+
+    func testStyleSample() {
+        XCTAssertEqual(TextProcessor.styleSample(punctuation: true, lowercase: false), "Hey, are you free Friday? I'll bring the snacks.")
+        XCTAssertEqual(TextProcessor.styleSample(punctuation: false, lowercase: true), "hey are you free friday i'll bring the snacks")
+    }
+
+    func testFitWithoutAutocapitalizeKeepsLowercaseStart() {
+        XCTAssertEqual(TextProcessor.fit("hey there", before: "", autocapitalize: false), "hey there")
+        XCTAssertEqual(TextProcessor.fit("then we left", before: "it rained ", autocapitalize: false), "then we left")
+    }
+
     // MARK: Fitting into the text field
 
     func testFitAtStartOfFieldCapitalizes() {

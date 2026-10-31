@@ -14,6 +14,11 @@ enum TextProcessor {
     struct Options: Equatable {
         var removeFillers = true
         var removeRepeats = true
+        /// Off: no commas, full stops or question marks, just the words.
+        var punctuation = true
+        /// On: every letter the model wrote is lowercase (dictionary words
+        /// keep the spelling you gave them).
+        var lowercase = false
         var replacements: [Replacement] = []
     }
 
@@ -25,6 +30,10 @@ enum TextProcessor {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return "" }
         if options.removeFillers { text = removeFillers(text) }
+        // After fillers (they lean on the commas) and before the dictionary,
+        // so a written "Dr." or "C++" keeps its marks.
+        if !options.punctuation { text = removePunctuation(text) }
+        if options.lowercase { text = text.lowercased() }
         // Dictionary before stutters, so a phrase like "c plus plus" survives.
         text = applyReplacements(text, options.replacements)
         if options.removeRepeats { text = removeRepeats(text) }
@@ -68,6 +77,22 @@ enum TextProcessor {
         return output
     }
 
+    /// Drops the punctuation a model adds between words: "Hey, are you
+    /// free? I'm out." → "Hey are you free I'm out". Marks inside a token
+    /// stay, so "3.5", "1,000", "10:30", "gold.com" and "don't" survive;
+    /// so do quotes, dashes and symbols like $ % @ #.
+    static func removePunctuation(_ text: String) -> String {
+        // Full-width marks (Chinese, Japanese) and Spanish openers always go.
+        var result = text.replacingOccurrences(of: "[。、，！？；：¿¡]", with: " ", options: .regularExpression)
+        // Elsewhere, a mark goes unless it sits between two letters or digits.
+        result = result.replacingOccurrences(
+            of: "(?<![\\p{L}\\p{N}])[.,!?;:…]+|[.,!?;:…]+(?![\\p{L}\\p{N}])",
+            with: "", options: .regularExpression
+        )
+        return result.replacingOccurrences(of: "[ \\t]{2,}", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
     /// "I I think" → "I think", "the the" → "the". Only exact immediate repeats
     /// of the same word (case-insensitive), so "had had" is the one casualty
     /// we accept. Letters only: "555 555 1234" is a phone number, not a stutter.
@@ -100,6 +125,12 @@ enum TextProcessor {
         result = result.replacingOccurrences(of: ",{2,}", with: ",", options: .regularExpression)
         result = result.replacingOccurrences(of: "^[,.;:]\\s*", with: "", options: .regularExpression)
         return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The Settings preview line: how a dictation reads with these choices.
+    static func styleSample(punctuation: Bool, lowercase: Bool) -> String {
+        clean("Hey, are you free Friday? I'll bring the snacks.",
+              options: Options(removeFillers: false, removeRepeats: false, punctuation: punctuation, lowercase: lowercase))
     }
 
     // MARK: Fitting text into the field

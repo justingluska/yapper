@@ -253,7 +253,8 @@ final class KeyboardModel: ObservableObject {
             result.text,
             before: proxy.documentContextBeforeInput,
             after: proxy.documentContextAfterInput,
-            autocapitalize: proxy.autocapitalizationType != UITextAutocapitalizationType.none
+            // All lowercase means the first letter too.
+            autocapitalize: !Settings.lowercase && proxy.autocapitalizationType != UITextAutocapitalizationType.none
         )
         proxy.insertText(fitted)
         showUndo(fitted)

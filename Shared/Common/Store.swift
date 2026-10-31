@@ -6,6 +6,8 @@ enum Settings {
         static let sessionMinutes = "settings.sessionMinutes"
         static let removeFillers = "settings.removeFillers"
         static let removeRepeats = "settings.removeRepeats"
+        static let punctuation = "settings.punctuation"
+        static let lowercase = "settings.lowercase"
         static let replacements = "settings.replacements"
         static let historyDays = "settings.historyDays"
         static let haptics = "settings.haptics"
@@ -53,6 +55,19 @@ enum Settings {
     static var removeRepeats: Bool {
         get { defaults.object(forKey: Key.removeRepeats) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.removeRepeats) }
+    }
+
+    /// Off: dictations come out as bare words, no commas or full stops.
+    static var punctuation: Bool {
+        get { defaults.object(forKey: Key.punctuation) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.punctuation) }
+    }
+
+    /// On: dictations come out all lowercase, and the keyboard doesn't
+    /// capitalize the start of a sentence either.
+    static var lowercase: Bool {
+        get { defaults.object(forKey: Key.lowercase) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: Key.lowercase) }
     }
 
     /// After the keyboard opens Yapper to start listening, go straight back
@@ -161,7 +176,10 @@ enum Settings {
     }
 
     static var processorOptions: TextProcessor.Options {
-        TextProcessor.Options(removeFillers: removeFillers, removeRepeats: removeRepeats, replacements: replacements)
+        TextProcessor.Options(
+            removeFillers: removeFillers, removeRepeats: removeRepeats,
+            punctuation: punctuation, lowercase: lowercase, replacements: replacements
+        )
     }
 }
 

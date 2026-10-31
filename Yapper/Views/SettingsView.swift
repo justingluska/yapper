@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var sessionMinutes = Settings.sessionMinutes
     @State private var removeFillers = Settings.removeFillers
     @State private var removeRepeats = Settings.removeRepeats
+    @State private var punctuation = Settings.punctuation
+    @State private var lowercase = Settings.lowercase
     @State private var haptics = Settings.haptics
     @State private var returnToApp = Settings.returnToApp
     @State private var historyDays = Settings.historyDays
@@ -71,8 +73,15 @@ struct SettingsView: View {
                     .onChange(of: removeFillers) { _, value in Settings.removeFillers = value }
                 Toggle("Remove stutters (\"I I think\")", isOn: $removeRepeats)
                     .onChange(of: removeRepeats) { _, value in Settings.removeRepeats = value }
+                Toggle("Punctuation", isOn: $punctuation)
+                    .onChange(of: punctuation) { _, value in Settings.punctuation = value }
+                Toggle("All lowercase", isOn: $lowercase)
+                    .onChange(of: lowercase) { _, value in Settings.lowercase = value }
             } header: {
                 SectionLabel(text: "Cleanup")
+            } footer: {
+                Text("Your words come out like this: \u{201C}\(TextProcessor.styleSample(punctuation: punctuation, lowercase: lowercase))\u{201D}")
+                    .padding(.top, 4)
             }
 
             Section {

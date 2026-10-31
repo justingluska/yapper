@@ -8,6 +8,8 @@ struct SettingsPane: View {
     @AppStorage("mac.inputDevice") private var inputDevice = ""
     @AppStorage(Settings.Key.removeFillers) private var removeFillers = true
     @AppStorage(Settings.Key.removeRepeats) private var removeRepeats = true
+    @AppStorage(Settings.Key.punctuation) private var punctuation = true
+    @AppStorage(Settings.Key.lowercase) private var lowercase = false
     @AppStorage(Settings.Key.historyDays) private var historyDays = -1
     @State private var recordingHours = Settings.recordingHours
     @State private var launchAtLogin = MacSettings.launchAtLogin
@@ -64,6 +66,14 @@ struct SettingsPane: View {
                 Hairline()
                 SettingRow(title: "Remove repeated words", detail: "“I I think” becomes “I think”.") {
                     Toggle("", isOn: $removeRepeats).labelsHidden().toggleStyle(.switch)
+                }
+                Hairline()
+                SettingRow(title: "Punctuation", detail: "Off: just the words, no commas or full stops.") {
+                    Toggle("", isOn: $punctuation).labelsHidden().toggleStyle(.switch)
+                }
+                Hairline()
+                SettingRow(title: "All lowercase", detail: "Every letter, even at the start of a sentence.") {
+                    Toggle("", isOn: $lowercase).labelsHidden().toggleStyle(.switch)
                 }
             }
 
