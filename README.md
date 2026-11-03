@@ -163,9 +163,10 @@ privacy label is "Data Not Collected".
 - **Audio** is recorded only while you dictate and transcribed on your iPhone. Recordings are kept on the device for
   30 days by default, excluded from iCloud backups, and deleted on your schedule.
 - **Text** stays in History on your iPhone for as long as you choose.
-- **The only network request** is the speech-model download, which happens when you tap Download. (On iOS 26, "Get
-  Apple's newest model" asks iOS to fetch Apple's own speech model from Apple; Yapper sends nothing.) Files come from
-  Hugging Face, pinned to exact commits so they can't change under you. Everything else runs with networking
+- **The only network request** is the optional Parakeet download, which happens only if you choose Parakeet and tap
+  Download. Apple on-device, the default, needs none. (On iOS 26, "Get Apple's newest model" asks iOS to fetch Apple's
+  own speech model from Apple; Yapper sends nothing.) Parakeet's files come from Hugging Face, pinned to exact commits
+  so they can't change under you. Everything else runs with networking
   switched off in code (`ModelHub.offlineMode`).
 
 Full policy: [digitalmundo.org/yapper/privacy](https://digitalmundo.org/yapper/privacy/).

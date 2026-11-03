@@ -36,9 +36,10 @@ keyboard contains no network code. Without Full Access, the keyboard still types
 
 ## The internet
 
-The only network request Yapper makes is downloading the speech model, which happens only when you tap Download.
-The files come from Hugging Face (huggingface.co), which, like any website, sees your device's IP address when it
-serves them. After that, Yapper works fully offline.
+With Apple on-device, the default speech engine, Yapper makes no network requests at all. The only network request
+Yapper ever makes is downloading the optional Parakeet model, which happens only if you choose Parakeet and tap
+Download. The files come from Hugging Face (huggingface.co), which, like any website, sees your device's IP address
+when it serves them. After that, Yapper works fully offline.
 
 On iOS 26 and later, if you tap "Get Apple's newest model" under Apple on-device, iOS downloads Apple's speech model
 for your language from Apple, the same way it does for its own dictation. That download is between iOS and Apple; no

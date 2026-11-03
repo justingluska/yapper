@@ -441,7 +441,7 @@ struct PrivacyView: View {
                 block("What Yapper collects", "Nothing. There is no account, no analytics, no advertising, no crash reporting and no server.")
                 block("Your voice", "Audio is recorded only while you dictate and transcribed on this iPhone. Each recording is kept on this iPhone for 30 days by default (Settings › Keep recordings, from Don't keep to Forever) so you can play it back or transcribe it again, then deleted. Its text stays in History. Recordings are never sent anywhere and are left out of iCloud backups.")
                 block("Your text", "Transcripts, including failed attempts, are kept in History on this device for as long as you choose in Settings, and you can delete them at any time. If your iPhone backs up to iCloud, iOS includes app data like History in that backup, as for any app.")
-                block("The internet", "Yapper downloads the speech model once, from Hugging Face, when you ask it to. After that it makes no network requests. The keyboard has no network code at all.")
+                block("The internet", "With Apple on-device, the default, Yapper makes no network requests at all. If you choose Parakeet, Yapper downloads it once, from Hugging Face, when you tap Download, and makes no requests after that. (On iOS 26, Apple's newest speech model and a second language's model come from Apple through iOS, the way its own dictation's do; Yapper sends nothing.) The keyboard has no network code at all.")
                 block("Full Access", "iOS requires Full Access for the keyboard to share text with the Yapper app through their private App Group folder. Yapper uses it for that and nothing else.")
                 block("Check for yourself", "Yapper is open source: github.com/justingluska/yapper")
             }
@@ -525,11 +525,11 @@ struct DifferentView: View {
                 block("Most dictation apps work in the cloud",
                       "When you talk, they upload your recording to their servers, a model there turns it into text, and the text comes back. That's why they need an account and a connection, why many cap your words per week, and why your voice and text end up on someone else's computer, often with analytics attached.")
                 block("Yapper works on your iPhone",
-                      "The speech model runs on your iPhone's Neural Engine, the chip built for this. Your voice is turned into text right there. There's no Yapper server at all: no account, no word limits, no subscription, and it works in airplane mode.")
-                block("The trade-off",
-                      "The model has to live on your phone: a one-time download of about 600 MB, and a few seconds to load it when you turn the engine on (a few minutes the very first time, while iOS optimizes it). Cloud apps skip that, but only because your audio leaves your phone.")
+                      "Your voice is turned into text on this iPhone, by the speech engine you pick: Apple's on-device model, built into \(Device.os) (the default), or Parakeet, which runs on your iPhone's Neural Engine. There's no Yapper server at all: no account, no word limits, no subscription, and it works in airplane mode.")
+                block("What it takes",
+                      "With Apple on-device there's nothing to download: it comes with \(Device.os) and starts instantly. Parakeet, which can be more accurate, is optional. If you choose it, it's a one-time download (\(ModelChoice.ultra.downloadMB) MB for Parakeet Ultra, \(ModelChoice.v3.downloadMB) MB for Parakeet v3) and takes a few seconds to load when you turn the engine on (a few minutes the very first time, while iOS optimizes it). Cloud apps skip that wait only because your audio leaves your phone.")
                 block("Nothing to take our word for",
-                      "Yapper is open source, so anyone can read the code and check that it never sends your voice or text anywhere. The only network request it ever makes is the model download you start yourself.")
+                      "Yapper is open source, so anyone can read the code and check that it never sends your voice or text anywhere. The only network request it ever makes is the Parakeet download, and only if you choose Parakeet and start it yourself. With Apple on-device, Yapper never goes online.")
             }
             .padding(20)
         }
