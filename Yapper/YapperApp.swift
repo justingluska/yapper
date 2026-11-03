@@ -26,7 +26,7 @@ struct YapperApp: App {
         let calendar = Calendar.current
         var records: [DictationRecord] = []
         let samples = [
-            "Sounds good, see you at six. I'll bring the wine.",
+            "No, thank you. I'd rather not see you again. Enjoy the wine.",
             "Can you send me the deck before the call tomorrow? I want to go over the pricing slide.",
             "Remind me to renew the car registration next week.",
         ]
