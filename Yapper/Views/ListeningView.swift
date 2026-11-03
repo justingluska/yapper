@@ -87,6 +87,16 @@ struct ListeningView: View {
                     }
                 }
             }
+        case .idle where controller.interrupted && controller.transcriptionsInFlight > 0:
+            // A call stopped the session; what came before it is still being
+            // transcribed.
+            VStack(spacing: 16) {
+                ProgressView()
+                Text("A call took the microphone. Transcribing what you said before it…")
+                    .font(Theme.font(15))
+                    .foregroundStyle(Theme.textMuted)
+                    .multilineTextAlignment(.center)
+            }
         default:
             if let text = controller.lastText, controller.errorMessage == nil {
                 Card {
@@ -129,6 +139,9 @@ struct ListeningView: View {
         switch controller.phase {
         case .recording: return "● Listening"
         case .transcribing: return "Transcribing"
+        // A call took the microphone: it's off until the engine is turned on again.
+        case .idle where controller.interrupted: return "Paused"
+        case .idle: return "Mic off"
         default: return "Mic ready"
         }
     }

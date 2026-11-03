@@ -95,7 +95,7 @@ final class DictationController: ObservableObject {
     private var returnObserver: NSObjectProtocol?
     /// Dictations still being transcribed. The model stays in memory until
     /// they're done, even if the engine turned off meanwhile (a phone call).
-    private var transcriptionsInFlight = 0
+    @Published private(set) var transcriptionsInFlight = 0
 
     /// `handsFree`: Siri, the Action Button or Control Center (`YapIntent`),
     /// which stops on its own when the speaker goes quiet.
@@ -731,10 +731,31 @@ final class DictationController: ObservableObject {
         // no longer keeps Yapper running in the background; ask for time to
         // finish this one.
         let background = BackgroundTime.begin("Transcribe dictation")
+        let id = UUID()
+        let date = Date()
+        let note = interrupted ? Self.interruptedNote : nil
+        // A call takes the microphone, and with it what keeps Yapper running
+        // in the background, so iOS may suspend or end Yapper before this is
+        // transcribed (a model still loading, a long dictation on the CPU).
+        // Put the recording in History first, as a failed dictation that can
+        // be transcribed again; the entry is filled in once it's done. Only
+        // when recordings are kept (Settings › Keep recordings).
+        var audioFile: String?
+        if interrupted, duration >= Transcriber.minimumDuration {
+            audioFile = RecordingStore.save(samples, sampleRate: rate, id: id)
+            if let audioFile {
+                HistoryStore.append(DictationRecord(
+                    id: id, date: date, text: "", raw: "", duration: duration,
+                    engine: ModelChoice.current.isParakeet ? Engine.parakeetNeuralEngine.rawValue : Engine.apple.rawValue,
+                    model: ModelChoice.current.title, note: note, error: Self.interruptedUnfinished, audioFile: audioFile
+                ))
+                historyVersion += 1
+            }
+        }
+        let placeholder = audioFile != nil
 
         Task {
             defer { background.end() }
-            let id = UUID()
             let choice = ModelChoice.current
             do {
                 // A downloaded model that is still loading (right after a
@@ -767,13 +788,13 @@ final class DictationController: ObservableObject {
                         Clipboard.copy(text)
                     }
                     lastText = text
-                    HistoryStore.append(DictationRecord(
-                        id: id, text: text, raw: output.text, duration: duration, engine: output.engine.rawValue,
+                    keep(DictationRecord(
+                        id: id, date: date, text: text, raw: output.text, duration: duration, engine: output.engine.rawValue,
                         model: output.model, processingTime: output.processingTime,
-                        note: interrupted ? [Self.interruptedNote, output.note].compactMap { $0 }.joined(separator: " ") : output.note,
-                        audioFile: RecordingStore.save(samples, sampleRate: rate, id: id),
+                        note: Self.joined(note, output.note),
+                        audioFile: audioFile ?? RecordingStore.save(samples, sampleRate: rate, id: id),
                         languages: output.languages
-                    ))
+                    ), replacing: placeholder)
                     if recordingSource == .handsFree {
                         copiedHandsFree = true
                         if UIApplication.shared.applicationState != .active { revealRecord = id }
@@ -788,14 +809,16 @@ final class DictationController: ObservableObject {
                     StatsStore.record(words: text.split(whereSeparator: \.isWhitespace).count, seconds: duration)
                 } else {
                     let message = "Didn't catch anything. Try again a little closer to the mic."
-                    saveFailure(id: id, message: message, samples: samples, rate: rate, duration: duration, output: output)
+                    saveFailure(id: id, date: date, message: message, note: note, samples: samples, rate: rate, duration: duration,
+                                output: output, audioFile: audioFile, replacing: placeholder)
                     report(message)
                 }
             } catch Transcriber.TranscriberError.tooShort {
                 // An accidental double tap: nothing worth keeping.
                 report(Transcriber.TranscriberError.tooShort.localizedDescription)
             } catch {
-                saveFailure(id: id, message: error.localizedDescription, samples: samples, rate: rate, duration: duration, output: nil)
+                saveFailure(id: id, date: date, message: error.localizedDescription, note: note, samples: samples, rate: rate,
+                            duration: duration, output: nil, audioFile: audioFile, replacing: placeholder)
                 report(error.localizedDescription)
             }
             RecordingStore.prune()
@@ -812,7 +835,21 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Saves a finished dictation to History, filling in the entry saved
+    /// before transcribing when there is one.
+    private func keep(_ record: DictationRecord, replacing placeholder: Bool) {
+        if placeholder { HistoryStore.update(record) } else { HistoryStore.append(record) }
+    }
+
     static let interruptedNote = "A call or Siri took the microphone, so this dictation stopped there."
+    /// Stays on the History entry only if Yapper never got to finish it.
+    static let interruptedUnfinished = "A call or Siri took the microphone, and Yapper was stopped before it could transcribe this. Your recording is here: transcribe it again."
+
+    /// Notes for History, in order, or nil when there are none.
+    private static func joined(_ notes: String?...) -> String? {
+        let parts = notes.compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
 
     enum ModelWait { case loaded, skipped }
 
@@ -851,15 +888,16 @@ final class DictationController: ObservableObject {
 
     /// Failed dictations go in History too, with their audio, so they can be
     /// played back and transcribed again.
-    private func saveFailure(id: UUID, message: String, samples: [Float], rate: Double,
-                             duration: TimeInterval, output: Transcriber.Output?) {
-        HistoryStore.append(DictationRecord(
-            id: id, text: "", raw: output?.text ?? "", duration: duration,
+    private func saveFailure(id: UUID, date: Date, message: String, note: String?, samples: [Float], rate: Double,
+                             duration: TimeInterval, output: Transcriber.Output?,
+                             audioFile: String?, replacing placeholder: Bool) {
+        keep(DictationRecord(
+            id: id, date: date, text: "", raw: output?.text ?? "", duration: duration,
             engine: output?.engine.rawValue ?? (ModelChoice.current.isParakeet ? Engine.parakeetNeuralEngine.rawValue : Engine.apple.rawValue),
             model: output?.model ?? ModelChoice.current.title, processingTime: output?.processingTime,
-            note: output?.note, error: message,
-            audioFile: RecordingStore.save(samples, sampleRate: rate, id: id)
-        ))
+            note: Self.joined(note, output?.note), error: message,
+            audioFile: audioFile ?? RecordingStore.save(samples, sampleRate: rate, id: id)
+        ), replacing: placeholder)
     }
 
     func cancelRecording() {

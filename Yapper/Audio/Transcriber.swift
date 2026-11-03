@@ -282,12 +282,15 @@ actor Transcriber {
         return preparedApple
     }
 
+    /// Anything shorter is an accidental tap, not speech (`tooShort`).
+    static let minimumDuration: TimeInterval = 0.3
+
     /// Transcribes mono samples captured at `sampleRate`. When no Parakeet
     /// model is loaded, Apple's recognizer does the work if `allowApple`,
     /// and `fallbackReason` (why Parakeet wasn't ready) is recorded with it.
     func transcribe(_ samples: [Float], sampleRate: Double, preferred: ModelChoice,
                     allowApple: Bool, fallbackReason: String) async throws -> Output {
-        guard Double(samples.count) / sampleRate >= 0.3 else { throw TranscriberError.tooShort }
+        guard Double(samples.count) / sampleRate >= Self.minimumDuration else { throw TranscriberError.tooShort }
         let started = Date()
 
         if preferred == .apple {
