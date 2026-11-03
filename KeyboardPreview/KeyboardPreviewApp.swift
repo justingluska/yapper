@@ -32,6 +32,7 @@ private struct PreviewScreen: View {
         case "recording": model = KeyboardModel(preview: .recording, sessionEnds: ends, compact: compact)
         case "transcribing": model = KeyboardModel(preview: .transcribing, sessionEnds: ends, compact: compact)
         case "undo": model = KeyboardModel(preview: .ready, sessionEnds: ends, undo: "See you at six.", compact: compact)
+        case "cancelled": model = KeyboardModel(preview: .ready, sessionEnds: ends, compact: compact, canRecover: true)
         case "error": model = KeyboardModel(preview: .idle, banner: "Didn't catch anything. Try again a little closer to the mic.", compact: compact)
         case "typing": model = KeyboardModel(preview: .ready, sessionEnds: ends, compact: compact, mode: .typing)
         default: model = KeyboardModel(preview: .idle, compact: compact)

@@ -35,7 +35,8 @@ struct KeyboardRootView: View {
 
 // MARK: - Top bar
 
-/// Engine state on the left; Cancel (recording) or Turn off (ready) on the right.
+/// Engine state on the left; Cancel (recording) or Turn off (ready) on the
+/// right, with Undo cancel for a while after a Cancel.
 private struct TopBar: View {
     @ObservedObject var model: KeyboardModel
 
@@ -70,6 +71,16 @@ private struct TopBar: View {
                     .padding(.horizontal, 8)
                     .frame(height: 30)
             } else if model.phase == .ready {
+                if model.canRecover {
+                    Button { model.recoverTapped() } label: {
+                        Label("Undo cancel", systemImage: "arrow.uturn.backward")
+                            .font(Theme.font(13, .semibold))
+                            .foregroundStyle(Theme.textEmphasis)
+                    }
+                    .padding(.horizontal, 4)
+                    .frame(height: 30)
+                    .accessibilityLabel("Undo cancel: type out the recording you cancelled")
+                }
                 Button { model.endSessionTapped() } label: {
                     Label("Turn off", systemImage: "power")
                         .font(Theme.font(13, .medium))
@@ -87,6 +98,8 @@ private struct TopBar: View {
         case .recording: return "Listening"
         case .transcribing: return "Transcribing"
         case .ready, .preparing:
+            // Short, to leave room for Undo cancel beside Turn off.
+            if model.canRecover { return "Cancelled" }
             if let ends = model.sessionEnds {
                 return "Engine on until \(ends.formatted(date: .omitted, time: .shortened))"
             }

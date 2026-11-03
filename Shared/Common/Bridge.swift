@@ -53,6 +53,8 @@ enum Bridge {
         case start = "com.gluska.yapper.start"
         case stop = "com.gluska.yapper.stop"
         case cancel = "com.gluska.yapper.cancel"
+        /// Transcribe the recording that was just cancelled after all.
+        case recover = "com.gluska.yapper.recover"
         case endSession = "com.gluska.yapper.end-session"
         /// App → keyboard
         case stateChanged = "com.gluska.yapper.state"
@@ -126,6 +128,7 @@ enum Bridge {
         static let keyboardSeen = "bridge.keyboardSeen"
         static let fullAccessSeen = "bridge.fullAccessSeen"
         static let command = "bridge.command"
+        static let recoverableUntil = "bridge.recoverableUntil"
     }
 
     /// The app writes a heartbeat every second while a session is live. A
@@ -171,6 +174,17 @@ enum Bridge {
             return t > 0 ? Date(timeIntervalSince1970: t) : nil
         }
         set { defaults.set(newValue?.timeIntervalSince1970 ?? 0, forKey: Key.sessionEnds) }
+    }
+
+    /// Until when the app still holds the recording that was just
+    /// cancelled, so the keyboard can offer to bring it back. The audio
+    /// itself stays in the app's memory; only this date is shared.
+    static var recoverableUntil: Date? {
+        get {
+            let t = defaults.double(forKey: Key.recoverableUntil)
+            return t > 0 ? Date(timeIntervalSince1970: t) : nil
+        }
+        set { defaults.set(newValue?.timeIntervalSince1970 ?? 0, forKey: Key.recoverableUntil) }
     }
 
     static var lastError: String? {

@@ -24,6 +24,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var undoText: String?
     /// True between a mic tap and the app answering, for the warm path.
     @Published private(set) var waitingForApp = false
+    /// The app still holds the recording that was just cancelled: Undo
+    /// brings it back.
+    @Published private(set) var canRecover = false
 
     /// Where the bars read the voice from, every frame while recording.
     let levelFeed: LevelFeed?
@@ -73,7 +76,7 @@ final class KeyboardModel: ObservableObject {
     /// real keyboard (the KeyboardPreview target). It has no controller, so
     /// its keys do nothing.
     init(preview phase: Bridge.Phase, sessionEnds: Date? = nil, undo: String? = nil, banner: String? = nil,
-         waitingForApp: Bool = false, compact: Bool = false, mode: Mode = .voice) {
+         waitingForApp: Bool = false, compact: Bool = false, mode: Mode = .voice, canRecover: Bool = false) {
         levelFeed = LevelFeed()
         self.mode = mode
         self.phase = phase
@@ -84,6 +87,7 @@ final class KeyboardModel: ObservableObject {
         self.banner = banner
         self.waitingForApp = waitingForApp
         self.compact = compact
+        self.canRecover = canRecover
     }
 
     /// Feeds the level bars in a preview.
@@ -172,6 +176,10 @@ final class KeyboardModel: ObservableObject {
         } else {
             recordingStarted = nil
         }
+        // Only while the engine is on: with it off the app may not be
+        // running to hear the request.
+        let recoverable = live == .ready && (Bridge.recoverableUntil.map { $0 > Date() } ?? false)
+        if recoverable != canRecover { canRecover = recoverable }
         if waitingForApp, live == .recording {
             waitingForApp = false
             startTimeout?.cancel()
@@ -224,6 +232,14 @@ final class KeyboardModel: ObservableObject {
 
     func cancelTapped() {
         Bridge.send(.cancel)
+        Feedback.tap()
+    }
+
+    /// Undo cancel: the app transcribes the cancelled recording and it's
+    /// typed in like any other.
+    func recoverTapped() {
+        canRecover = false
+        Bridge.send(.recover)
         Feedback.tap()
     }
 

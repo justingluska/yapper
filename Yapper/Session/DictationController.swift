@@ -72,6 +72,9 @@ final class DictationController: ObservableObject {
     /// A hands-free dictation saved while Yapper was in the background: the
     /// next time Yapper opens, History shows it. Cleared once shown.
     @Published var revealRecord: UUID?
+    /// Until when the last cancelled recording can still be recovered
+    /// (`recoverCancelled`). Nil when there's none.
+    @Published private(set) var recoverableUntil: Date?
 
     private let recorder = Recorder()
     private let transcriber = Transcriber()
@@ -96,6 +99,25 @@ final class DictationController: ObservableObject {
     /// Dictations still being transcribed. The model stays in memory until
     /// they're done, even if the engine turned off meanwhile (a phone call).
     @Published private(set) var transcriptionsInFlight = 0
+    /// The last recording thrown away mid-dictation (Cancel, or the engine
+    /// turned off while listening), so a slip of the thumb can be undone.
+    /// In memory only, never written to disk: cancelled means not kept,
+    /// whatever Keep recordings says. Gone after `recoveryWindow`, when the
+    /// next dictation starts, or when Yapper quits.
+    private var cancelledTake: Take?
+    private var recoveryExpiry: Timer?
+
+    /// One dictation's audio, and where it was started from.
+    struct Take {
+        let samples: [Float]
+        let rate: Double
+        let source: Source
+        var duration: TimeInterval { rate > 0 ? Double(samples.count) / rate : 0 }
+    }
+
+    /// How long a cancelled recording can be recovered: as long as the
+    /// keyboard waits to type a finished one in.
+    static let recoveryWindow: TimeInterval = Bridge.resultLifetime
 
     /// `handsFree`: Siri, the Action Button or Control Center (`YapIntent`),
     /// which stops on its own when the speaker goes quiet.
@@ -120,6 +142,7 @@ final class DictationController: ObservableObject {
         signals.observe(.start) { Bridge.accept(.start) { [weak self] in self?.keyboardStart() } }
         signals.observe(.stop) { Bridge.accept(.stop) { [weak self] in self?.finishRecording() } }
         signals.observe(.cancel) { Bridge.accept(.cancel) { [weak self] in self?.cancelRecording() } }
+        signals.observe(.recover) { Bridge.accept(.recover) { [weak self] in self?.recoverCancelled() } }
         signals.observe(.endSession) { Bridge.accept(.endSession) { [weak self] in self?.endSession() } }
         NotificationCenter.default.addObserver(forName: .yapperStartRequested, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.handleStartRequest() }
@@ -129,6 +152,7 @@ final class DictationController: ObservableObject {
         Bridge.phase = .idle
         Bridge.recordingStarted = nil
         Bridge.sessionEnds = nil
+        Bridge.recoverableUntil = nil
     }
 
     // MARK: Model
@@ -626,7 +650,8 @@ final class DictationController: ObservableObject {
         case .finished:
             finishRecording()
         case .nothingHeard:
-            cancelRecording()
+            // Silence from start to end: nothing worth offering back.
+            cancelRecording(recoverable: false)
             report("Didn't hear anything, so Yapper stopped listening.")
         }
     }
@@ -639,7 +664,9 @@ final class DictationController: ObservableObject {
     }
 
     func endSession() {
-        if phase == .recording { _ = recorder.end() }
+        // Turning the engine off mid-dictation throws the recording away,
+        // like Cancel, so it can be recovered the same way.
+        if phase == .recording { keepForRecovery(takeRecording()) }
         recorder.stop()
         expiry?.invalidate()
         expiry = nil
@@ -702,6 +729,8 @@ final class DictationController: ObservableObject {
         errorMessage = nil
         Bridge.lastError = nil
         copiedHandsFree = false
+        // A new dictation replaces the one that was cancelled.
+        forgetCancelledTake()
         if source == .handsFree { silence.arm() } else { silence.disarm() }
         recorder.begin()
         let now = Date()
@@ -719,21 +748,38 @@ final class DictationController: ObservableObject {
     /// the keyboard only types a result in for two minutes.
     func finishRecording(interrupted: Bool = false) {
         guard phase == .recording else { return }
+        transcribe(takeRecording(), interrupted: interrupted)
+    }
+
+    /// Stops keeping audio and hands over what this recording captured.
+    private func takeRecording() -> Take {
         silence.disarm()
-        let samples = recorder.end()
-        let rate = recorder.sampleRate
-        let duration = Double(samples.count) / rate
+        let take = Take(samples: recorder.end(), rate: recorder.sampleRate, source: recordingSource)
         recordingStarted = nil
         Bridge.recordingStarted = nil
-        setPhase(.transcribing)
+        return take
+    }
+
+    /// Turns a take into text: typed in by the keyboard (when it came from
+    /// there) or copied, and saved to History. `recovered`: a cancelled
+    /// take brought back, which is copied too.
+    private func transcribe(_ take: Take, interrupted: Bool = false, recovered: Bool = false) {
+        // With a session live the phase shows the work. A take recovered
+        // after the engine went off leaves it off: Yapper isn't listening.
+        let ownsPhase = phase != .idle
+        if ownsPhase { setPhase(.transcribing) }
         transcriptionsInFlight += 1
         // Once the microphone stops (a call, or the engine turned off), iOS
         // no longer keeps Yapper running in the background; ask for time to
         // finish this one.
         let background = BackgroundTime.begin("Transcribe dictation")
+        let samples = take.samples
+        let rate = take.rate
+        let duration = take.duration
+        let source = take.source
         let id = UUID()
         let date = Date()
-        let note = interrupted ? Self.interruptedNote : nil
+        let note = Self.joined(interrupted ? Self.interruptedNote : nil, recovered ? Self.recoveredNote : nil)
         // A call takes the microphone, and with it what keeps Yapper running
         // in the background, so iOS may suspend or end Yapper before this is
         // transcribed (a model still loading, a long dictation on the CPU).
@@ -779,11 +825,11 @@ final class DictationController: ObservableObject {
                 engine = output.engine
                 let text = TextProcessor.clean(output.text, options: Settings.processorOptions)
                 if !text.isEmpty {
-                    if recordingSource == .keyboard {
+                    if source == .keyboard {
                         // The keyboard types it; the clipboard keeps a copy
                         // to paste again anywhere.
                         Bridge.publish(text)
-                        if Settings.copyEveryDictation || interrupted { Clipboard.copy(text) }
+                        if Settings.copyEveryDictation || interrupted || recovered { Clipboard.copy(text) }
                     } else {
                         Clipboard.copy(text)
                     }
@@ -795,7 +841,7 @@ final class DictationController: ObservableObject {
                         audioFile: audioFile ?? RecordingStore.save(samples, sampleRate: rate, id: id),
                         languages: output.languages
                     ), replacing: placeholder)
-                    if recordingSource == .handsFree {
+                    if source == .handsFree {
                         copiedHandsFree = true
                         if UIApplication.shared.applicationState != .active { revealRecord = id }
                     }
@@ -825,11 +871,11 @@ final class DictationController: ObservableObject {
             historyVersion += 1
             transcriptionsInFlight -= 1
             if isSessionLive { prepareApple() } else { releaseModel() }
-            if recordingSource != .app, UIApplication.shared.applicationState == .background {
+            if source != .app, UIApplication.shared.applicationState == .background {
                 presentingListening = false
             }
             // The session may have ended (or been interrupted) meanwhile.
-            guard phase == .transcribing else { return }
+            guard ownsPhase, phase == .transcribing else { return }
             setPhase(.ready)
             extendSession()
         }
@@ -844,6 +890,7 @@ final class DictationController: ObservableObject {
     static let interruptedNote = "A call or Siri took the microphone, so this dictation stopped there."
     /// Stays on the History entry only if Yapper never got to finish it.
     static let interruptedUnfinished = "A call or Siri took the microphone, and Yapper was stopped before it could transcribe this. Your recording is here: transcribe it again."
+    static let recoveredNote = "Recovered after it was cancelled."
 
     /// Notes for History, in order, or nil when there are none.
     private static func joined(_ notes: String?...) -> String? {
@@ -900,14 +947,53 @@ final class DictationController: ObservableObject {
         ), replacing: placeholder)
     }
 
-    func cancelRecording() {
+    /// Stops listening without transcribing. Unless `recoverable` is
+    /// false, the recording can still be brought back for a while
+    /// (`recoverCancelled`), in case Cancel was a slip.
+    func cancelRecording(recoverable: Bool = true) {
         guard phase == .recording else { return }
-        silence.disarm()
-        _ = recorder.end()
-        recordingStarted = nil
-        Bridge.recordingStarted = nil
+        let take = takeRecording()
+        if recoverable { keepForRecovery(take) }
         presentingListening = false
         setPhase(.ready)
+    }
+
+    /// Holds a thrown-away recording for `recoveryWindow`. Takes too short
+    /// to transcribe aren't worth offering back.
+    private func keepForRecovery(_ take: Take) {
+        guard take.duration >= Transcriber.minimumDuration else { return }
+        cancelledTake = take
+        let until = Date().addingTimeInterval(Self.recoveryWindow)
+        recoverableUntil = until
+        Bridge.recoverableUntil = until
+        recoveryExpiry?.invalidate()
+        recoveryExpiry = Timer.scheduledTimer(withTimeInterval: Self.recoveryWindow, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.forgetCancelledTake() }
+        }
+    }
+
+    private func forgetCancelledTake() {
+        recoveryExpiry?.invalidate()
+        recoveryExpiry = nil
+        guard cancelledTake != nil || recoverableUntil != nil else { return }
+        cancelledTake = nil
+        recoverableUntil = nil
+        Bridge.recoverableUntil = nil
+        Bridge.post(.stateChanged)
+    }
+
+    /// Transcribes the last cancelled recording after all, as if Done had
+    /// been tapped: typed in by the keyboard when it came from there, copied,
+    /// and saved to History. From the keyboard's Undo cancel, or from Home
+    /// (`presenting`: the listening screen shows it being transcribed).
+    func recoverCancelled(presenting: Bool = false) {
+        guard let take = cancelledTake, let until = recoverableUntil, until > Date(),
+              phase == .ready || phase == .idle else { return }
+        forgetCancelledTake()
+        errorMessage = nil
+        Bridge.lastError = nil
+        if presenting { presentingListening = true }
+        transcribe(take, recovered: true)
     }
 
     /// The user closed the listening screen or went back to the keyboard.

@@ -85,6 +85,13 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        // Over the layout rather than in it, so the power button stays put.
+        .overlay(alignment: .bottom) {
+            if controller.recoverableUntil != nil {
+                recoverButton
+                    .padding(.bottom, keyboardEnabled ? 16 : 16 + Theme.controlHeight + 12)
+            }
+        }
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
         .firstLoadNote(isPresented: $firstLoadNote)
@@ -129,6 +136,21 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Dictate and copy")
         .accessibilityIdentifier("home.dictate")
+    }
+
+    /// For a while after a Cancel (or turning the engine off mid-dictation):
+    /// transcribe that recording after all.
+    private var recoverButton: some View {
+        Button {
+            controller.recoverCancelled(presenting: true)
+        } label: {
+            Label("Recover cancelled recording", systemImage: "arrow.uturn.backward")
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .frame(maxWidth: 300)
+        .padding(.horizontal, 20)
+        .accessibilityHint("Transcribes the recording you just cancelled and copies the text")
+        .accessibilityIdentifier("home.recover")
     }
 
     private var helpButton: some View {

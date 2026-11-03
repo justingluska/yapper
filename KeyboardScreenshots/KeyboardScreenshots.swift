@@ -10,7 +10,7 @@ final class KeyboardScreenshots: XCTestCase {
 
     func testKeyboardStates() {
         for dark in [false, true] {
-            for state in ["idle", "ready", "recording", "transcribing", "undo", "error", "typing"] {
+            for state in ["idle", "ready", "recording", "transcribing", "undo", "cancelled", "error", "typing"] {
                 let app = XCUIApplication()
                 app.launchArguments = ["-state", state] + (dark ? ["-dark"] : [])
                 app.launch()

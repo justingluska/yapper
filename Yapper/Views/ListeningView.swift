@@ -87,12 +87,15 @@ struct ListeningView: View {
                     }
                 }
             }
-        case .idle where controller.interrupted && controller.transcriptionsInFlight > 0:
-            // A call stopped the session; what came before it is still being
-            // transcribed.
+        case .idle where controller.transcriptionsInFlight > 0:
+            // The engine is off (a call stopped it, or a cancelled recording
+            // was recovered after turning it off), but a dictation is still
+            // being transcribed.
             VStack(spacing: 16) {
                 ProgressView()
-                Text("A call took the microphone. Transcribing what you said before it…")
+                Text(controller.interrupted
+                     ? "A call took the microphone. Transcribing what you said before it…"
+                     : "Transcribing on your iPhone…")
                     .font(Theme.font(15))
                     .foregroundStyle(Theme.textMuted)
                     .multilineTextAlignment(.center)
@@ -126,7 +129,8 @@ struct ListeningView: View {
                     .font(Theme.font(14))
                     .foregroundStyle(Theme.textMuted)
                     .multilineTextAlignment(.center)
-            } else if controller.phase == .ready, controller.lastText != nil, controller.errorMessage == nil {
+            } else if controller.phase == .ready || (controller.phase == .idle && controller.transcriptionsInFlight == 0),
+                      controller.lastText != nil, controller.errorMessage == nil {
                 Text("Copied. Paste it anywhere.")
                     .font(Theme.font(14))
                     .foregroundStyle(Theme.textMuted)
